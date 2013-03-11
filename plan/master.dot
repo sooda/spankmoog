@@ -1,0 +1,24 @@
+digraph G {
+	fontname = "Bitstream Vera Sans"
+		fontsize = 8
+		rankdir = LR
+		node [
+		shape = "rectangle"
+		]
+		edge [
+		]
+
+		ch1 [label = "channel"]
+		ch2 [label = "channel"]
+		ch3 [label = "channel"]
+
+
+		sum [label = "+", shape = "circle"]
+		mul [label = "*", shape = "circle"]
+		out [shape = "diamond"]
+
+		ch1 -> sum
+		ch2 -> sum
+		ch3 -> sum -> mul -> out
+
+}

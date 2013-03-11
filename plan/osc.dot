@@ -1,0 +1,35 @@
+digraph G {
+	fontname = "Bitstream Vera Sans"
+		fontsize = 8
+		rankdir = LR
+		node [
+		shape = "rectangle"
+		]
+		edge [
+		]
+
+		note [shape = "diamond"]
+		time [shape = "diamond"]
+
+		osc1 [label = "oscillator"]
+		osc2 [label = "oscillator"]
+		osc3 [label = "oscillator"]
+
+		mul1 [label = "* a", shape="circle"]
+		mul2 [label = "* b", shape="circle"]
+		mul3 [label = "* c", shape="circle"]
+
+		sum [label = "+", shape = "circle"]
+		out [shape = "diamond"]
+
+		note -> osc1 -> mul1 -> sum
+		time -> osc1
+
+		note -> osc2 -> mul2 -> sum
+		time -> osc2
+
+		note -> osc3 -> mul3 -> sum
+		time -> osc3
+
+		sum -> out
+}

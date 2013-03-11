@@ -1,0 +1,33 @@
+digraph G {
+	fontname = "Bitstream Vera Sans"
+		fontsize = 8
+		rankdir = LR
+		node [
+		shape = "rectangle"
+		]
+		edge [
+		]
+
+		audioin [shape = "diamond"]
+
+		lowpass [label="2 order lowpass"]
+		reverb [label="reverb"]
+		lfo [label="LFO"]
+
+		lpparams [label="params", shape="diamond"]
+		revparams [label="params", shape="diamond"]
+		lfoparams [label="params", shape="diamond"]
+		lpstate [label="state", shape="diamond"]
+		revstate [label="state", shape="diamond"]
+		lfostate [label="state", shape="diamond"]
+
+		out [shape = "diamond"]
+
+		audioin -> lowpass -> reverb -> out
+		lfoparams -> lfo -> lpparams
+		lfostate -> lfo
+		lpstate -> lowpass
+		lpparams -> lowpass
+		revstate -> reverb
+		revparams -> reverb
+}

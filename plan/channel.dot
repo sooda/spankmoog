@@ -1,0 +1,29 @@
+digraph G {
+	fontname = "Bitstream Vera Sans"
+		fontsize = 8
+		rankdir = LR
+		node [
+		shape = "rectangle"
+		]
+		edge [
+		]
+
+		note [shape = "diamond"]
+		time [shape = "diamond"]
+		osc [label = "Oscillators" ]
+		filt [label = "Filters"]
+		adsramp [label = "*", shape = "circle"]
+		adsr [label = "ADSR"]
+		amp [label = "*", shape = "circle"]
+		vol [label = "Volume", shape="diamond"]
+		out [shape = "diamond"]
+
+		note -> osc
+		time -> osc
+		osc -> filt
+		filt -> adsramp
+		adsr -> adsramp
+		adsramp -> amp
+		vol -> amp
+		amp -> out
+}
