@@ -1,14 +1,41 @@
 ;**********************************************************************
 ; C H A M E L E O N   DSP Assembler file                              *
 ;**********************************************************************
+; S-89.3510 Assignment: Virtual analog synthesizer                    *
+;                                                                     *
+; By Konsta Hölttä and Nuutti Hölttä                                  *
+;                                                                     *
+; Current state:                                                      *
+; - initial structure for channel freeing and allocation and note     *
+;   playing                                                           *
+; - chameleon's panel buttons play some notes, encoder changes octave *
+;   (somewhat buggy and such, but will be replaced by midi anyway)    *
+; - a pretty naive pulse oscillator (integer-length periods only)     *
+; - a lowpass filter, though currently with a fixed factor            *
+;                                                                     *
+; Non-exhaustive list of TODOs in no particular order:                *
+; - get midi working, get rid of the current panel interface          *
+; - non-integer periods (update midi_table.asm accordingly somehow)   *
+; - cleaner channel management structure (including but not limited   *
+;   to leaving more registers for init and eval routines)             *
+; - way to specify the instrument at runtime                          *
+; - ADSR and LFO                                                      *
+; - more interesting instruments                                      *
+; - fix lowpass init routine                                          *
+; - well-thought input and output sample passing conventions (what    *
+;   registers etc; currently oscillator outputs to x0 and filter      *
+;   inputs and outputs from/to A. rather arbitrary, yes)              *
+; - fix, optimize and prettify all the things                         *
+;                                                                     *
+; Some basic stuff based on:                                          *
 ; Project work template for sample-based audio I/O (polling)          *
 ; Based on the example dspthru by Soundart                            *
 ; Hannu Pulakka, March 2006, February 2007                            *
 ; Modified by Antti Pakarinen, February 2012, update in March 2012    *
-; Register r7 is reserved for interrupt routines as default	      *
+; Register r7 is reserved for interrupt routines as default           *
 ;**********************************************************************
 
- 	nolist
+	nolist
 	page	255,0
 	opt	MU,S,CC,CEX,MEX,MD
 	list
@@ -31,23 +58,74 @@
 
 ;**********************************************************************
 
+PI equ 3.14159265
+DT equ 1.0/48000.0
+
+PulseOscillatorStateSize equ 2
+LowpassFilterStateSize   equ 2
+
+; ChannelCapacity is the fixed size for each channel.
+; Depending on the actual oscillator and filter state sizes, this may be
+; more than needed, but doesn't matter. NOTE: this must be increased
+; if it's not enough for some oscillator+filter combination.
+ChannelCapacity  equ 64
+NumChannels      equ 5
+
+; Channel data format:
+; [0]                note number (if highest bit is set, the channel is not alive)
+; [1]                oscillator eval function address
+; [2]                filter eval function address
+; [3]                filter state start address (&[4] + oscillator state size)
+; [4 and forward]    oscillator state
+; [after osc state]  filter state (this is where [3] points to)
+ChDataIdx_Note          equ 0
+ChDataIdx_OscEval       equ 1
+ChDataIdx_FiltEval      equ 2
+ChDataIdx_FiltStateAddr equ 3
+ChDataIdx_OscState      equ 4
+
+;Bit numbers in "KeypadState" for each button:
+;#8:  Edit
+;#9:  Part up
+;#10: Shift
+;#11; Part down
+;#16: Group up
+;#17: Page up
+;#18: Group down
+;#19: Page down
+;#20: Param up
+;#21: Value up
+;#22: Param down
+;#23: Value down
+
+KeyBit_Edit      equ 8
+KeyBit_PartUp    equ 9
+KeyBit_Shift     equ 10
+KeyBit_PartDown  equ 11
+KeyBit_GroupUp   equ 16
+KeyBit_PageUp    equ 17
+KeyBit_GroupDown equ 18
+KeyBit_PageDown  equ 19
+KeyBit_ParamUp   equ 20
+KeyBit_ValueUp   equ 21
+KeyBit_ParamDown equ 22
+KeyBit_ValueDown equ 23
+
 
 ;**********************************************************************
 ; Memory allocations
 ;**********************************************************************
-	org	X:$000000	;Denotes the the memory location where the contents of the following lines will be stored 
-;Do your own allocations of X-memory here
+	org	X:$000000
 
+; Starting at ChannelData, there is data for NumChannels channels; each has a ChannelCapacity-sized block of memory.
+ChannelData: ds NumChannels*ChannelCapacity
 
-	
+nolist
+	include "midi_table.asm"
+list
+
 	org	Y:$000000
-;Do your own allocations of Y-memory here
 
-
-
-;Template related memory allocations
-MasterVolumeTarget:	;Holds the current value of volume pot (log scale $0-$7FFFFF)
-	ds	1	
 MasterVolume:		
 	ds	1		
 CTRL1Value:		;Holds the current value of control pot 1 (lin scale $0-$7FFFFF)
@@ -57,27 +135,27 @@ CTRL2Value:		;Holds the current value of control pot 2 (lin scale $0-$7FFFFF)
 CTRL3Value:		;Holds the current value of control pot 3 (lin scale $0-$7FFFFF)
 	ds	1
 KeypadState:		;Holds the current state of buttons. Bit values represent the states (1=down, 0=up)
-	ds	1	
-;Bit numbers in "KeypadState" for each button:
-;#8:  Edit
-;#9:  Part up
-;#10: Shift
-;#11; Part down 
-;#16: Group up
-;#17: Page up
-;#18: Group down
-;#19: Page down
-;#20: Param up
-;#21: Value up
-;#22: Param down
-;#23: Value down	
+	ds	1
+PrevKeypadState:
+	ds	1
+
+NoteThatWentDown: ; If a key just went down, this holds the note value. Otherwise, this has highest bit set.
+	ds	1
+NoteThatWentUp:   ; If a key just went up, this holds the note value. Otherwise, this has highest bit set.
+	ds	1
+
+; TODO: the above NoteThatWentDown end NoteThatWentUp currently don't support it when several keys
+; go down (or up) at about the same time (before the last one has been processed).
+; Might want to fix this if trouble ensues.
+
+PanelKeys_NoteOffset:
+	dc 0
 
 ;For debug and simulation
 OutputL:
 	ds	1
 OutputR:
 	ds	1
-	
 
 
 
@@ -117,36 +195,245 @@ Start:
 	BCLR	#SR_I1,SR
 	BSET	#HCR_HCIE,X:<<HCR  		; Enable Host command interrupt
 	; Initialize Master Volume variables
-	MOVE	A,Y:MasterVolumeTarget
 	MOVE	A,Y:MasterVolume
 	; Channel synchronization
 	if !simulator
 	  BRSET	#SSISR_RFS,X:<<SSISR0,*		; Wait while receiving left frame
 	  BRCLR	#SSISR_RFS,X:<<SSISR0,*		; Wait while receiving right frame
 	endif
-	
+
+	; initialize all channels as dead
+
+	move #>$ffffff,x0
+	move #ChannelData,a
+
+	do #NumChannels,DeadChannelInitLoopEnd
+		move a1,r1
+		move x0,X:(r1+ChDataIdx_Note)
+		add #ChannelCapacity,a
+	DeadChannelInitLoopEnd:
+
+	; no note has just went up or down
+
+	move x0,Y:NoteThatWentUp
+	move x0,Y:NoteThatWentDown
+
+	move #>0,x0
+	move x0,Y:PrevKeypadState
+
 MainLoop:
+	; temporary, ugly code for converting chameleon panel key presses to note values.
+	; the encoder modifies an offset added to every note (note that you need only turn the knob
+	; slightly to get to the higher notes)
 
-	; *** Audio input and output are processed here ***
-	; 
-	; The following default code
-	; - copies data from input to output and multiplies with the current gain
-	; - smooths master volume changes
-	;
-	; Note: If you want to work in mono, just use the left channel and copy the output to right channel also
-	
-	
-	;*** LEFT CHANNEL ********************************************************
-	;Input routines for left Ch	
-	if !simulator
-	BRCLR	#SSISR_RDF,X:<<SSISR0,*		; Wait until receive register is full
-	endif
-	MOVEP	X:<<RX0,Y0			; Read new input sample
+	move Y:KeypadState,x0
+	move Y:PrevKeypadState,a
+	cmp x0,a
+	beq NoKeysChanged
+		move a,b
+		eor x0,b
 
-	; *** Do the processing here for left ch, Y0 holds the sample ****	
-	
+		; can't bother prettifying this.. we'll get the real midi working soon, right?
 
+		brclr #KeyBit_Edit,b1,PanelKeys_NotEdit
+			move #>0,b
+			jmp PanelKeyIdentified
+		PanelKeys_NotEdit:
 
+		brclr #KeyBit_PartUp,b1,PanelKeys_NotPartUp
+			move #>1,b
+			jmp PanelKeyIdentified
+		PanelKeys_NotPartUp:
+
+		brclr #KeyBit_GroupUp,b1,PanelKeys_NotGroupUp
+			move #>2,b
+			jmp PanelKeyIdentified
+		PanelKeys_NotGroupUp:
+
+		brclr #KeyBit_PageUp,b1,PanelKeys_NotPageUp
+			move #>3,b
+			jmp PanelKeyIdentified
+		PanelKeys_NotPageUp:
+
+		brclr #KeyBit_ParamUp,b1,PanelKeys_NotParamUp
+			move #>4,b
+			jmp PanelKeyIdentified
+		PanelKeys_NotParamUp:
+
+		brclr #KeyBit_ValueUp,b1,PanelKeys_NotValueUp
+			move #>5,b
+			jmp PanelKeyIdentified
+		PanelKeys_NotValueUp:
+
+		brclr #KeyBit_Shift,b1,PanelKeys_NotShift
+			move #>6,b
+			jmp PanelKeyIdentified
+		PanelKeys_NotShift:
+
+		brclr #KeyBit_PartDown,b1,PanelKeys_NotPartDown
+			move #>7,b
+			jmp PanelKeyIdentified
+		PanelKeys_NotPartDown:
+
+		brclr #KeyBit_GroupDown,b1,PanelKeys_NotGroupDown
+			move #>8,b
+			jmp PanelKeyIdentified
+		PanelKeys_NotGroupDown:
+
+		brclr #KeyBit_PageDown,b1,PanelKeys_NotPageDown
+			move #>9,b
+			jmp PanelKeyIdentified
+		PanelKeys_NotPageDown:
+
+		brclr #KeyBit_ParamDown,b1,PanelKeys_NotParamDown
+			move #>10,b
+			jmp PanelKeyIdentified
+		PanelKeys_NotParamDown:
+
+		brclr #KeyBit_ValueDown,b1,PanelKeys_NotValueDown
+			move #>11,b
+			jmp PanelKeyIdentified
+		PanelKeys_NotValueDown:
+
+		PanelKeyIdentified:
+
+		move Y:PanelKeys_NoteOffset,y0
+		add y0,b
+
+		cmpu x0,a
+		bgt KeyUp
+			move b,Y:NoteThatWentDown
+			jmp DoneKeyDown
+		KeyUp:
+			move b,Y:NoteThatWentUp
+		DoneKeyDown:
+		move x0,Y:PrevKeypadState
+	NoKeysChanged:
+
+	; check if a key just went up
+
+	brset #23,Y:NoteThatWentUp,NoNoteWentUp
+		move Y:NoteThatWentUp,x0
+		move #>$ffffff,y0
+		move y0,Y:NoteThatWentUp
+
+		; find and kill the channel
+		; TODO: once we implement ADSR, this mustn't kill the note right away, but instead end the sustain phase.
+		;   although we can't end the sustain phase if we're not done with attack or decay yet.
+		;   maybe add an "is this key currently being held"-field for each channel?
+
+		move #ChannelData,a
+		do #NumChannels,ChannelKillLoopEnd
+			move a1,r1
+
+			move X:(r1+ChDataIdx_Note),b
+			cmp x0,b
+			bne NotTheNoteToKill
+				move y0,X:(r1+ChDataIdx_Note)
+				enddo
+			NotTheNoteToKill:
+
+			add #ChannelCapacity,a
+		ChannelKillLoopEnd:
+	NoNoteWentUp:
+
+	; check if a key just went down
+
+	brset #23,Y:NoteThatWentDown,NoNoteWentDown
+		move Y:NoteThatWentDown,n2
+		move #>$ffffff,y0
+		move y0,Y:NoteThatWentDown
+
+		; find a free channel and initialize there
+		; NOTE: if no free channels are available, the new note is just ignored.
+		; TODO: the following code assumes that oscillator and filter init routines
+		;   never modify the A or r1 registers. Nobody probably cares about r1, but
+		;   A might be nice, so if that comes up, modify this code appropriately.
+
+		move #ChannelData,a
+		do #NumChannels,ChannelAllocationLoopEnd
+			move a1,r1
+
+			move X:(r1+ChDataIdx_Note),y0
+			brclr #23,y0,NotFreeChannel
+				move n2,X:(r1+ChDataIdx_Note)
+
+				; TODO: appropriate oscillator and filter routines and their parameters
+
+				move #EvalPulseOscillator,x0
+				move x0,X:(r1+ChDataIdx_OscEval)
+
+				move #EvalLowpassFilter,x0
+				move x0,X:(r1+ChDataIdx_FiltEval)
+
+				lua (r1+ChDataIdx_OscState+PulseOscillatorStateSize),r0
+				move r0,X:(r1+ChDataIdx_FiltStateAddr)
+
+				lua (r1+ChDataIdx_OscState),r0
+				move #NotePeriod,r2
+				move X:(r2+n2),x0
+				bsr InitPulseOscillator
+
+				move X:(r1+ChDataIdx_FiltStateAddr),r0
+				move #>300,x0 ; NOTE: this (cutoff for lowpass) is currently ignored, must fix the lowpass init routine
+				bsr InitLowpassFilter
+
+				enddo
+			NotFreeChannel:
+
+			add #ChannelCapacity,a
+
+		ChannelAllocationLoopEnd:
+	NoNoteWentDown:
+
+	; evaluate channels, sum into b
+
+	clr b
+	move #ChannelData,r1
+
+	do #NumChannels,ChannelEvaluateLoopEnd
+		move X:(r1+ChDataIdx_Note),y0
+		brset #23,y0,DeadChannel
+			; save value of b so far
+			; TODO: come up with a nicer way. This stops r3, r4 and r5 from being available
+			;   to the oscillator and filter eval routines. And it's ugly too.
+			move b0,r3
+			move b1,r4
+			move b2,r5
+		
+			; evaluate oscillator
+			lua (r1+ChDataIdx_OscState),r0
+			move X:(r1+ChDataIdx_OscEval),b1
+			sub #ChEval_OscEvalBranch,b
+			move b1,r2
+			ChEval_OscEvalBranch:
+			bsr r2
+
+			; sample from x0 to a
+			move x0,a
+
+			; evaluate filter
+			move X:(r1+ChDataIdx_FiltStateAddr),r0
+			move X:(r1+ChDataIdx_FiltEval),b1
+			sub #ChEval_FiltEvalBranch,b
+			move b1,r2
+			ChEval_FiltEvalBranch:
+			bsr r2
+
+			; restore b's value and sum the new sample from a (though scaled by 1/NumChannels)
+			move r3,b0
+			move r4,b1
+			move r5,b2
+			move a,x0
+			maci #1.0/NumChannels,x0,b
+		DeadChannel:
+
+		move r1,a
+		add #ChannelCapacity,a
+		move a,r1
+	ChannelEvaluateLoopEnd:
+
+	move b,y0
 	
 	;Output routines for left Ch
 	MOVE	Y:MasterVolume,X0		; Current volume value from memory to X0
@@ -156,44 +443,140 @@ MainLoop:
 	if !simulator
 	BRCLR	#SSISR_TDE,X:<<SSISR0,*		; Wait for transmit register
 	endif 
-	MOVEP	B,X:<<TX00			; Write new output sample to the DAC
-	
-	;*** RIGHT CHANNEL ********************************************************
-	;Input routines for right Ch
-	if !simulator
-	BRCLR	#SSISR_RDF,X:<<SSISR0,*		; Wait until receive register is full
-	endif
-	MOVEP	X:<<RX0,Y1			; Read new input sample
-
-	; *** Do the processing here for right ch, Y1 holds the sample ****	
-	 
-	  
+	MOVEP	B,X:<<TX00			; Write new output sample to the DAC	
 	
 	;Output routines for right Ch
 	MOVE	Y:MasterVolume,X1		; Current volume value from memory to X0
-	MOVE	Y1,Y:OutputR			; Move the output value from Y1 to memory for simulator use
-	MPYR	X1,Y1,B				; Scale the input sample according to the volume curve
+	MOVE	Y0,Y:OutputR			; Move the output value from Y1 to memory for simulator use
+	MPYR	X1,Y0,B				; Scale the input sample according to the volume curve
 	NOP
 	if !simulator
 	BRCLR	#SSISR_TDE,X:<<SSISR0,*		; Wait for transmit register
 	endif 
 	MOVEP	B,X:<<TX00			; Write new output sample to the DAC
-	
-	
-	;** Volume smoothing ******************************************************
-	
-	MOVE	Y:MasterVolumeTarget,B		; target volume value
-	MOVE	Y:MasterVolume,A		; current volume value
-	SUB	A,B				
-	ASR	#10,B,B				; increment
-	ADD	A,B				; current volume value += increment
-	NOP
-	MOVE	B,Y:MasterVolume
 
-	; *** End of audio input and output processing ***
 
 	BRA	MainLoop
 	
+
+;***************************************************************************
+; OSCILLATOR ROUTINES (init and eval per oscillator)
+;
+; Init routine calling convention:
+;	Input:
+;		- x0: period length
+;		- r0: X mem address for memory for oscillator-dependent state
+;	No output, but modifies X:(r0+i) for 0 <= i < StateSize, where StateSize
+;		depends on oscillator type
+;	NOTE: currently it's assumed that oscillator init routines never modify
+;	the A or r1 registers. (It might be nice to have A available as well.
+;	See the TODO earlier in this file.)
+;
+; Eval routine calling convention:
+;	Input:
+;		- X:(r0) and forward: oscillator-dependent state
+;	Output:
+;		- x0: output sample
+;	NOTE: currently it's assumed that oscillator init routines never modify
+;	the r1, r3, r4 or r5 registers.
+;
+; Note that each oscillator type has an equ-defined state size in the
+; beginning-ish of this file, e.g. PulseOscillatorStateSize is 2.
+;***************************************************************************
+
+
+; *** Pulse oscillator ***
+;
+; Outputs -1.0 for first PL/2 samples, then 1.0-eps for PL - PL/2 samples, and repeats
+; State: period length (PL) (1 word), period counter (PCo) (1 word)
+; TODO: check for off-by-one errors in pulse lengths; optimize
+
+InitPulseOscillator:
+	move x0,X:(r0)
+	move x0,X:(r0+1)
+	rts
+
+EvalPulseOscillator:
+	move #-1.0,x0
+	clr a
+	move X:(r0),a1
+	lsr a                 ; a1 = PL/2, rest of a is 0
+	clr b
+	move X:(r0+1),b1      ; b1 = PCo, rest of b is 0
+	cmp a,b
+	bgt EPO_NoHighPulse   ; if PCo > PL/2, don't set 1.0-eps to A
+		move #1.0,x0
+	EPO_NoHighPulse:
+	
+	sub #>1,b             ; decrement period counter
+	bne	EPO_NoRestart
+		move X:(r0),b1    ; restart counter if needed
+	EPO_NoRestart:
+	move b1,X:(r0+1)      ; put period counter back to state memory
+
+	rts
+	
+
+;***********************************************************************
+; FILTER ROUTINES (init and eval per filter)
+;
+; Init routine params depend on filter type, but r0 always points
+; to the X memory where state is to be stored.
+; NOTE: currently it's assumed that filter init routines never modify
+; the A or r1 registers. (It might be nice to have A available as well.
+; See the TODO earlier in this file.)
+;
+; Eval routine calling convention:
+;	Input:
+;		- a: input sample
+;		- X:(r0) and forward: filter-dependent state
+;	Output:
+;		- a: output sample
+;	NOTE: currently it's assumed that oscillator init routines never modify
+;	the r1, r3, r4 or r5 registers.
+;
+; Note that each filter type has an equ-defined state size in the
+; beginning-ish of this file, e.g. LowpassFilterStateSize is 2.
+;***********************************************************************
+
+; *** Lowpass filter ***
+;
+; State: smoothening factor (1 word), previous output (1 word, TODO: is 24 bits enough or do we want 2 words?)
+
+; Init param: x0: cutoff frequency
+InitLowpassFilter:
+	move #0.0,x1
+	move x1,X:(r0+1)	; initial "previous value" = 0.0
+
+	;move #DT,a
+	;move #(1.0/(2.0*PI)),x1
+	;move a,b
+	;mac x0,x1,a
+	;move a1,x1
+	; now b = DT, x1 = (freq * (1 / (2*PI)) + DT)
+	; TODO: can we do a good enough approximation or something and avoid division?
+	;rep #24
+	;	div x1,b
+
+	; TODO: fix the above code. something hairy about the div or something? haven't really looked into it yet.
+	;   the next instruction is just a dummy replacement for the above.
+
+	move #0.4,b0
+
+	move b0,X:(r0)
+
+	rts
+
+EvalLowpassFilter:
+	move a,b
+	move X:(r0+1),a ; a = previous
+	move X:(r0),y1  ; y1 = factor
+	sub a,b
+	move b,x1       ; x1 = input - previous
+	mac x1,y1,a     ; a = previous + factor * (input - previous)
+	move a,X:(r0+1)
+	rts
+
 
 ;*******************************************	
 ;INTERRUPT ROUTINES
@@ -201,7 +584,7 @@ MainLoop:
 UpdateVolume:
 	BRCLR	#HSR_HRDF,X:<<HSR,*	; Make sure that data is available
 	MOVEP	X:<<HRX,r7		; Read the data to r7	
-	MOVE	r7,Y:MasterVolumeTarget	; Write the data to memory
+	MOVE	r7,Y:MasterVolume	; Write the data to memory
 	MOVEP	r7,X:<<HTX		; Write the read value back to the MCU	
 	RTI				; Return from interrupt
 UpdateCTRL1:
@@ -231,9 +614,17 @@ KeyEvent:
 EncoderUp:
 	;Write your encoder up handler here
 
+	move Y:PanelKeys_NoteOffset,r7
+	lua (r7+12),r7
+	move r7,Y:PanelKeys_NoteOffset
+
 	RTI
 EncoderDown:
 	;Write your encoder down handler here
+
+	move Y:PanelKeys_NoteOffset,r7
+	lua (r7-12),r7
+	move r7,Y:PanelKeys_NoteOffset
 
 	RTI	
 	
