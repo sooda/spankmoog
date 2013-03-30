@@ -1,0 +1,20 @@
+bcc, bscc: branch (to subroutine) conditionally
+
+family manual table 12-27 page 267:
+
+cc(hs): carry clear (higher or same)
+cs(lo): carry set (lower)
+ec: extension clear
+eq: equal
+es: extension set
+ge: greater than or equal
+gt: greater than
+lc: limit clear
+le: less than or equal
+ls: limit set
+lt: less than
+mi: minus
+ne: not equal
+nr: normalized
+pl: plus
+nn: not normalized
