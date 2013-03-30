@@ -3,13 +3,16 @@
  * Outputs gnuplottable curves
  * Note that we use values larger than 1 so that the target value is reached in the time constant
  * Change CONSTSUSTAIN to experiment with constant sustain level or always-decaying release
+ *
+ * FIXME: should write in 24bit fixed point math, otherwise we have too much precision
+ * and results look different from real dsp signals
  */
 
 #include <stdio.h>
 #include <math.h>
 
 #define RATE 48000
-#define CONSTSUSTAIN 1
+#define CONSTSUSTAIN 0
 
 int main() {
 	const float t = 5000.0 / RATE;
@@ -41,7 +44,7 @@ int main() {
 			case STATE_ATTACK:
 				value += coeff * (topf - value);
 				if (value >= 1.0f) {
-					value = 1.0f; // TODO: interpolation? maybe not so exact needed
+					value = 1.0f; // this isn't needed in DSP as it saturates automatically
 					state = STATE_DECAY;
 				}
 				break;
@@ -65,7 +68,7 @@ int main() {
 			case STATE_DECAY:
 #if !CONSTSUSTAIN
 				// release from current level, we're never at the sustain level
-				rel_target = value + (0.0f - value) * temppuf;
+				rel_target = (1 - temppuf) * value; // value + (0.0f - value) * temppuf;
 #endif
 				// fall through
 			case STATE_SUSTAIN:
