@@ -1,0 +1,16 @@
+muokkaa adsr projektin nimeksi copypastatessa.
+
+tarviikohan koskaan:
+reset d
+output #`1 off
+
+lataa softa:
+load  "C:\Program Files\Chameleon.sdk\out\model01\debug\myprojects\adsr\dsp\main.cld"
+
+tarviikohan koskaan:
+
+raaka outputti fractional-luvuilla 0..1 (huomaa välilyönti):
+output #`1  y:OutputL "C:\Program Files\Chameleon.sdk\out\model01\debug\myprojects\adsr\juttu.io" -rf
+
+timed-outputti, mukana syklit:
+output #`1 t y:OutputL "C:\Program Files\Chameleon.sdk\out\model01\debug\myprojects\adsr\juttu.io" -rf
