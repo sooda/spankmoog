@@ -10,6 +10,11 @@ DSPAPP     := main.cld
 OUTDIR     := myprojects/digimoog/dsp
 EXTRAGOALS := dsp_code.h
 
+DSPDEPENDS := \
+	adsr.asm adsrinc.asm \
+	instrucode.asm instruparams.asm \
+	midi_table.asm
+
 include /Chameleon.sdk/make/maindsp.mak
 
 dsp_code.h : $(DSPAPP)

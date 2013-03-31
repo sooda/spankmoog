@@ -19,7 +19,7 @@
 ; - cleaner channel management structure (including but not limited   *
 ;   to leaving more registers for init and eval routines)             *
 ; - way to specify the instrument at runtime                          *
-; - ADSR and LFO                                                      *
+; - ADSR and LFO for filters                                          *
 ; - more interesting instruments                                      *
 ; - fix lowpass init routine                                          *
 ; - well-thought input and output sample passing conventions (what    *
@@ -58,8 +58,11 @@
 
 ;**********************************************************************
 
-PI equ 3.14159265
-DT equ 1.0/48000.0
+PI	equ	3.14159265
+RATE	equ	48000
+DT	equ	1.0/RATE
+
+	include 'adsrinc.asm'
 
 PulseOscillatorStateSize equ 2
 LowpassFilterStateSize   equ 2
@@ -82,7 +85,12 @@ ChDataIdx_Note          equ 0
 ChDataIdx_OscEval       equ 1
 ChDataIdx_FiltEval      equ 2
 ChDataIdx_FiltStateAddr equ 3
-ChDataIdx_OscState      equ 4
+ChDataIdx_AdsrState     equ 4
+ChDataIdx_InstruPtr     equ (4+AdsrStateSize)
+ChDataIdx_OscState      equ (4+AdsrStateSize+1)
+
+ChNoteDeadBit           equ 23
+ChNoteKeyoffBit         equ 22
 
 ;Bit numbers in "KeypadState" for each button:
 ;#8:  Edit
@@ -119,12 +127,14 @@ KeyBit_ValueDown equ 23
 
 ; Starting at ChannelData, there is data for NumChannels channels; each has a ChannelCapacity-sized block of memory.
 ChannelData: ds NumChannels*ChannelCapacity
+AccumBackup ds 3
+AccumBackup2 ds 3
+LolTimer ds 1
 
-nolist
 	include "midi_table.asm"
-list
 
 	org	Y:$000000
+	include 'instruparams.asm'
 
 MasterVolume:		
 	ds	1		
@@ -156,9 +166,12 @@ OutputL:
 	ds	1
 OutputR:
 	ds	1
-
-
-
+OutputMiddle:
+	ds 1
+OutputAdsr:
+	ds 1
+OutputOsc:
+	ds 1
 
 ;**********************************************************************
 ; Interrupt vectors
@@ -220,6 +233,7 @@ Start:
 
 	move #>0,x0
 	move x0,Y:PrevKeypadState
+	move x0,Y:LolTimer
 
 MainLoop:
 	; temporary, ugly code for converting chameleon panel key presses to note values.
@@ -227,6 +241,19 @@ MainLoop:
 	; slightly to get to the higher notes)
 
 	move Y:KeypadState,x0
+
+	if simulator
+		; simulate a keypress
+		move Y:LolTimer,a
+		add #>1,a
+		move a,Y:LolTimer
+		cmp #>500,a
+		bge _keyoff
+	_keyon:
+		move #>(1<<KeyBit_Edit),x0
+	_keyoff:
+		; keypadstate is 0
+	endif
 	move Y:PrevKeypadState,a
 	cmp x0,a
 	beq NoKeysChanged
@@ -298,6 +325,9 @@ MainLoop:
 		PanelKeyIdentified:
 
 		move Y:PanelKeys_NoteOffset,y0
+		if simulator
+			move #>100,y0
+		endif
 		add y0,b
 
 		cmpu x0,a
@@ -318,9 +348,8 @@ MainLoop:
 		move y0,Y:NoteThatWentUp
 
 		; find and kill the channel
-		; TODO: once we implement ADSR, this mustn't kill the note right away, but instead end the sustain phase.
-		;   although we can't end the sustain phase if we're not done with attack or decay yet.
-		;   maybe add an "is this key currently being held"-field for each channel?
+		; (don't actually kill, but turn up the key off bit)
+		; this starts the decay phase, and the ADSR kills this channel after having decayed to silence
 
 		move #ChannelData,a
 		do #NumChannels,ChannelKillLoopEnd
@@ -329,7 +358,8 @@ MainLoop:
 			move X:(r1+ChDataIdx_Note),b
 			cmp x0,b
 			bne NotTheNoteToKill
-				move y0,X:(r1+ChDataIdx_Note)
+				bset #ChNoteKeyoffBit,b1
+				move b1,X:(r1+ChDataIdx_Note)
 				enddo
 			NotTheNoteToKill:
 
@@ -355,7 +385,7 @@ MainLoop:
 			move a1,r1
 
 			move X:(r1+ChDataIdx_Note),y0
-			brclr #23,y0,NotFreeChannel
+			brclr #ChNoteDeadBit,y0,NotFreeChannel
 				move n2,X:(r1+ChDataIdx_Note)
 
 				; TODO: appropriate oscillator and filter routines and their parameters
@@ -373,6 +403,12 @@ MainLoop:
 				move #NotePeriod,r2
 				move X:(r2+n2),x0
 				bsr InitPulseOscillator
+
+				lua (r1+ChDataIdx_AdsrState),r0
+				bsr AdsrInitState
+
+				move #Instrument_Bass,x0
+				move x0,X:(r1+ChDataIdx_InstruPtr)
 
 				move X:(r1+ChDataIdx_FiltStateAddr),r0
 				move #>300,x0 ; NOTE: this (cutoff for lowpass) is currently ignored, must fix the lowpass init routine
@@ -393,13 +429,12 @@ MainLoop:
 
 	do #NumChannels,ChannelEvaluateLoopEnd
 		move X:(r1+ChDataIdx_Note),y0
-		brset #23,y0,DeadChannel
+		brset #ChNoteDeadBit,y0,DeadChannel
 			; save value of b so far
-			; TODO: come up with a nicer way. This stops r3, r4 and r5 from being available
-			;   to the oscillator and filter eval routines. And it's ugly too.
-			move b0,r3
-			move b1,r4
-			move b2,r5
+			; TODO: come up with a nicer way. This is slow.
+			move b0,X:(AccumBackup)
+			move b1,X:(AccumBackup+1)
+			move b2,X:(AccumBackup+2)
 		
 			; evaluate oscillator
 			lua (r1+ChDataIdx_OscState),r0
@@ -409,6 +444,7 @@ MainLoop:
 			ChEval_OscEvalBranch:
 			bsr r2
 
+			move x0,Y:OutputOsc
 			; sample from x0 to a
 			move x0,a
 
@@ -419,11 +455,39 @@ MainLoop:
 			move b1,r2
 			ChEval_FiltEvalBranch:
 			bsr r2
+			move a,Y:OutputMiddle
+
+			; save a, as it's used in adsr
+			move a0,X:(AccumBackup2)
+			move a1,X:(AccumBackup2+1)
+			move a2,X:(AccumBackup2+2)
+
+			; compute adsr envelope and apply (multiply by) it
+			lua (r1+ChDataIdx_AdsrState),r0
+			move X:(r1+ChDataIdx_InstruPtr),r2
+			lua (r2+InstruParamIdx_Adsr),r4
+			move X:(r1+ChDataIdx_Note),r2
+			bsr AdsrEval
+			move r3,Y:OutputAdsr
+
+			move X:(AccumBackup2),a0
+			move X:(AccumBackup2+1),a1
+			move X:(AccumBackup2+2),a2
+
+			brclr #23,r3,_notkilled ; negative -> killed?
+		_killthischannel:
+			move #0,r3
+			bset #ChNoteDeadBit,r2
+			move r2,X:(r1+ChDataIdx_Note)
+		_notkilled:
+			move a,x0
+			move r3,x1 ; TODO: return adsr value in x1?
+			mpy x0,x1,a ; a *= adsr
 
 			; restore b's value and sum the new sample from a (though scaled by 1/NumChannels)
-			move r3,b0
-			move r4,b1
-			move r5,b2
+			move X:(AccumBackup),b0
+			move X:(AccumBackup+1),b1
+			move X:(AccumBackup+2),b2
 			move a,x0
 			maci #1.0/NumChannels,x0,b
 		DeadChannel:
@@ -577,6 +641,8 @@ EvalLowpassFilter:
 	move a,X:(r0+1)
 	rts
 
+	include 'instrucode.asm'
+	include 'adsr.asm'
 
 ;*******************************************	
 ;INTERRUPT ROUTINES

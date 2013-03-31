@@ -40,34 +40,17 @@ AdsrStateIdx_Mode equ	0 ; a/d/r
 AdsrStateIdx_Val  equ	1 ; previous value
 AdsrStateIdx_Tgt  equ	2 ; release target value
 
-AdsrStateSize     equ	3
 
 ; NOTE: these are bit numbers, so that we don't need to compare with accumulators
 ADSR_MODE_ATTACK_BIT	equ 0
 ADSR_MODE_DECAY_BIT	equ 1
-ADSR_MODE_SUSTAIN_BIT	equ 2
-ASDR_MODE_RELEASE_BIT	equ 3
-ADSR_MODE_KILLED_BIT	equ 4
+ADSR_MODE_RELEASE_BIT	equ 2
+ADSR_MODE_KILLED_BIT	equ 3
 
-ADSR_MODE_ATTACK	equ 1
-ADSR_MODE_DECAY		equ 2
-ADSR_MODE_SUSTAIN	equ 4
-ASDR_MODE_RELEASE	equ 8
-ADSR_MODE_KILLED	equ 16
-
-; use this in instrument definitions
-; TODO: macros.asm?
-; params: A=time, D=time, S=level, R=time
-AdsrParamBlock	macro	At,Dt,Sl,Rt
-	dc	(1-@POW(E,-1.0/At))
-	dc	(1-@POW(E,-1.0/Dt))
-	dc	Sl
-	dc	(1-@POW(E,-1.0/Rt))
-	endm
-
-; natural constants
-E	equ	2.718281828
-TGTCOEF	equ	E/(E-1) ; ~1,58, ~1/0.63, decay target multiplier to get to actual target in a time constant
+ADSR_MODE_ATTACK	equ (1<<ADSR_MODE_ATTACK_BIT)
+ADSR_MODE_DECAY		equ (1<<ADSR_MODE_DECAY_BIT)
+ADSR_MODE_RELEASE	equ (1<<ADSR_MODE_RELEASE_BIT)
+ADSR_MODE_KILLED	equ (1<<ADSR_MODE_KILLED_BIT)
 
 ; Initialize ASDR state
 ; Input:
@@ -75,16 +58,16 @@ TGTCOEF	equ	E/(E-1) ; ~1,58, ~1/0.63, decay target multiplier to get to actual t
 ; Work registers:
 ;	r1
 AdsrInitState:
-	move	#ADSR_MODE_ATTACK,r1
+	move	#>ADSR_MODE_ATTACK,r1
 	move	r1,X:(r0+AdsrStateIdx_Mode)
-	move	#0,r1
+	move	#>0,r1
 	move	r1,X:(r0+AdsrStateIdx_Val)
 	rts
-
 
 ; lowpassing decayer with stuff divided by 2
 ; a: value
 ; b: target
+; r4: X state struct pointer
 ; x0: lp coefficient
 AdsrLpCareful macro
 	asr #1,a,a	; value /= 2
@@ -95,20 +78,20 @@ AdsrLpCareful macro
 	asl #1,a,a	; multiply back by 2
 	nop		; stall :--(
 	move a,r3	; outval = a
-	move a,X:(r1+AdsrStateIdx_Val) ; can I combine these?
+	move a,X:(r4+AdsrStateIdx_Val) ; can I combine these?
 	endm
 ; Evaluate the ASDR
-; Input: (TODO: X/Y memory?)
+; Input:
 ;	Y:(r0): param pointer
-;	X:(r1): state pointer
-;	r2: gate, key on/off (lowest bit)
+;	X:(r4): state pointer
+;	r2: note number with key off bit included
 ; Output:
 ;	r3: envelope value, or -1 if killed
 ; Work registers:
 ;	r3, a, b
 AdsrEval:
-	move X:(r1+AdsrStateIdx_Mode),r3
-	brclr #0,r2,_gateoff
+	move X:(r4+AdsrStateIdx_Mode),r3
+	brset #ChNoteKeyoffBit,r2,_gateoff
 _gateon:
 	brset #ADSR_MODE_ATTACK_BIT,r3,_attack ; TODO: can I hack the A reg loading here?
 	brset #ADSR_MODE_DECAY_BIT,r3,_decay
@@ -125,17 +108,17 @@ _attack:
 	;                                ^^^^^^^^ precalc'd constant
 	; same thing in release state
 
-	move X:(r1+AdsrStateIdx_Val),a
-	move #(TGTCOEF/2),b
+	move X:(r4+AdsrStateIdx_Val),a
+	move #>(TGTCOEF/2),b
 	move Y:(r0+AdsrParamIdx_A),x0
 	AdsrLpCareful
 	brclr #23,a1,_gotresult ; didn't overflow yet
 _gotodecay:
-	move #ADSR_MODE_DECAY,r3
-	move r3,X:(r1+AdsrStateIdx_Mode)
+	move #>ADSR_MODE_DECAY,r3
+	move r3,X:(r4+AdsrStateIdx_Mode)
 	; when clipped, we should already be decaying (should we interpolate somehow?)
 _decay:
-	move X:(r1+AdsrStateIdx_Val),a
+	move X:(r4+AdsrStateIdx_Val),a
 	move Y:(r0+AdsrParamIdx_S),b
 	move Y:(r0+AdsrParamIdx_D),x0
 	sub a,b		; b = sustlevel - val
@@ -144,35 +127,35 @@ _decay:
 	mac x0,x1,a	; value += coeff * (sust - value)
 	nop		; stall :--(
 	move a,r3	; outval = a
-	move a,X:(r1+AdsrStateIdx_Val) ; see above
+	move a,X:(r4+AdsrStateIdx_Val) ; see above
 	bra _gotresult
 _gateoff:
-	brset #ADSR_MODE_RELEASE,r3,_relinited
-	brset #ADSR_MODE_KILLED,r3,_gotresult ; TODO: can this be ever called if the note is killed?
+	brset #ADSR_MODE_RELEASE_BIT,r3,_relinited
+	brset #ADSR_MODE_KILLED_BIT,r3,_gotresult ; TODO: can this be ever called if the note is killed?
 _relinit: ; start release state from whatever state we are in (a/d/s)
 	; compute release target:
 	;   current + (0 - current) * targetcoef
 	; = (1 - targetcoef) * current
-	move X:(r1+AdsrStateIdx_Val),x0
+	move X:(r4+AdsrStateIdx_Val),x0
 	mpyi #((1-TGTCOEF)/2),x0,a ; NOTE: /2
-	move #ADSR_MODE_RELEASE,r3
-	move r3,X:(r1+AdsrStateIdx_Mode)
-	move a,X:(r1+AdsrStateIdx_Tgt)
+	move #>ADSR_MODE_RELEASE,r3
+	move a,X:(r4+AdsrStateIdx_Tgt)
+	move r3,X:(r4+AdsrStateIdx_Mode)
 _relinited:
 	; this divide by 2 hax again because we might
 	; roll from 1 to -0.58 which again does not fit in a register
 	; copypasta from attack stage
-	move X:(r1+AdsrStateIdx_Val),a
-	move X:(r1+AdsrStateIdx_Tgt),b
+	move X:(r4+AdsrStateIdx_Val),a
+	move X:(r4+AdsrStateIdx_Tgt),b
 	move Y:(r0+AdsrParamIdx_R),x0
 	AdsrLpCareful
 	brclr #23,a1,_gotresult ; didn't overflow yet
 _gotokilled:
-	move #ADSR_MODE_KILLED,x0
-	move x0,X:(r1+AdsrStateIdx_Mode)
-	move #0,x0
-	move x0,X:(r1+AdsrStateIdx_Val) ; TODO: is this needed after we've killed the thing?
-	move #-1,r3 ; kill signal
+	move #>ADSR_MODE_KILLED,x0
+	move x0,X:(r4+AdsrStateIdx_Mode)
+	move #>0,x0
+	move x0,X:(r4+AdsrStateIdx_Val) ; TODO: is this needed after we've killed the thing?
+	move #>-1.0,r3 ; kill signal
 _gotresult:
 	rts
 
