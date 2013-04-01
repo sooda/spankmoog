@@ -9,7 +9,8 @@
 ; - initial structure for channel freeing and allocation and note     *
 ;   playing                                                           *
 ; - chameleon's panel buttons play some notes, encoder changes octave *
-;   (somewhat buggy and such, but will be replaced by midi anyway)    *
+;   (somewhat buggy and such, but will be removed anyway)             *
+; - midi key on and key off input (velocity currently ignored)        *
 ; - a pretty naive pulse oscillator (integer-length periods only)     *
 ; - a lowpass filter, though currently with a fixed factor            *
 ;                                                                     *
@@ -266,7 +267,7 @@ MainLoop:
 		move a,b
 		eor x0,b
 
-		; can't bother prettifying this.. we'll get the real midi working soon, right?
+		; can't bother prettifying this.. we'll remove this soon anyway, right?
 
 		brclr #KeyBit_Edit,b1,PanelKeys_NotEdit
 			move #>0,b
@@ -548,8 +549,8 @@ MainLoop:
 ;		- X:(r0) and forward: oscillator-dependent state
 ;	Output:
 ;		- x0: output sample
-;	NOTE: currently it's assumed that oscillator init routines never modify
-;	the r1, r3, r4 or r5 registers.
+;	NOTE: currently it's assumed that oscillator eval routines never modify
+;	the r1 register.
 ;
 ; Note that each oscillator type has an equ-defined state size in the
 ; beginning-ish of this file, e.g. PulseOscillatorStateSize is 2.
@@ -561,6 +562,7 @@ MainLoop:
 ; Outputs -1.0 for first PL/2 samples, then 1.0-eps for PL - PL/2 samples, and repeats
 ; State: period length (PL) (1 word), period counter (PCo) (1 word)
 ; TODO: check for off-by-one errors in pulse lengths; optimize
+; BETTER TODO: re-write so that it works with non-integer periods.
 
 InitPulseOscillator:
 	move x0,X:(r0)
@@ -603,8 +605,8 @@ EvalPulseOscillator:
 ;		- X:(r0) and forward: filter-dependent state
 ;	Output:
 ;		- a: output sample
-;	NOTE: currently it's assumed that oscillator init routines never modify
-;	the r1, r3, r4 or r5 registers.
+;	NOTE: currently it's assumed that filter eval routines never modify
+;	the r1 register.
 ;
 ; Note that each filter type has an equ-defined state size in the
 ; beginning-ish of this file, e.g. LowpassFilterStateSize is 2.
