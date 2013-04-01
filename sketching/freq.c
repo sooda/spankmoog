@@ -8,8 +8,8 @@ int main() {
 	int counter = -BITONE;
 	float freq = 440;
 	int tick = freq / (rate/2.0) * BITONE; // freq = tick * rate/2, tick = freq / (rate/2)
-	int comp = 0;
-	int out = -1;
+	int pulsshift = 1.0*BITONE;
+	int out = BITONE;
 	int laststate = counter;
 
 	FILE* fhs = fopen("saw.out", "wb");
@@ -22,17 +22,18 @@ int main() {
 		int filtd = sq - laststate;
 		laststate = sq;
 		float c = 2*rate / (4 * freq * (1 - freq / rate)); // FIXME: why 2*?
-		printf("%d %f %d %f\n", x, (float)counter / BITONE, out, (float)filtd / BITONE * c);
+		printf("%d %f %f %f\n", x, (float)counter / BITONE, (float)out / BITONE, (float)filtd / BITONE * c);
 		fwrite(&cnts, 1, sizeof(cnts), fhs);
 		fwrite(&outs, 1, sizeof(outs), fhp);
 		short dpw = 0x7fff * (float)filtd / BITONE * c;
 		fwrite(&dpw, 1, sizeof(dpw), fhd);
 
-		int prev = comp - counter;
 		counter += tick;
-		int curr = comp - counter;
-		if ((curr ^ prev) & 0x80000000)
-			out = -out;
+		int next = counter + pulsshift;
+		int asd = (counter >> 1) + 0.5*BITONE; // scale to 0..1
+		int bsd = (next >> 1) + 0.5*BITONE;
+		out = bsd-asd ;//- counter;
+		out += BITONE-pulsshift/2;
 	}
 
 }
