@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <rtems.h>
+#include <midishare.h>
 #include <chameleon.h>
 
 #include "dsp/dsp_code.h"
@@ -19,6 +20,9 @@
 #define	KEYPAD_EVENT	4
 #define ENCODER_UP	5
 #define ENCODER_DOWN	6
+
+#define MIDI_KEY_ON	7
+#define MIDI_KEY_OFF	8
 
 // Required definitions for a Chameleon application
 /**********************************************************************/
@@ -106,6 +110,18 @@ char DSP_write(rtems_unsigned32 event, rtems_unsigned32 data)
 	        if (!dsp_write_command(dsp, DSPP_VecHostCommandEncoderDown/2, TRUE))
 			Error("ERROR: cannot write command to DSP.\n");
 	  	return 1;
+	case MIDI_KEY_ON:
+			if (!dsp_write_data(dsp, &data, 1))
+				Error("ERROR: cannot write data to DSP.\n");
+			if (!dsp_write_command(dsp, DSPP_VecHostCommandMidiKeyOn/2, TRUE))
+				Error("ERROR: cannot write command to DSP.\n");
+		return 1;
+	case MIDI_KEY_OFF:
+			if (!dsp_write_data(dsp, &data, 1))
+				Error("ERROR: cannot write data to DSP.\n");
+			if (!dsp_write_command(dsp, DSPP_VecHostCommandMidiKeyOff/2, TRUE))
+				Error("ERROR: cannot write command to DSP.\n");
+		return 1;
 
 	default:
 	
@@ -252,6 +268,98 @@ rtems_boolean create_panel_task(void)
     return TRUE;
 }
 
+#define EVENT_MIDI RTEMS_EVENT_1
+
+static void receive_alarm(short ref)
+{
+	rtems_event_send((rtems_id) MidiGetInfo(ref), EVENT_MIDI);
+}
+
+// Midi task: receive midi events from MidiShare and send to dsp
+static rtems_task midi_task(rtems_task_argument ignored)
+{
+	MidiEvPtr		ev;
+	rtems_event_set		pending;
+	rtems_status_code	status;
+	rtems_id		task_id;
+	short			ref_midi;
+
+	ref_midi = MidiOpen("Synth");
+	if (ref_midi < 0)
+	{
+		TRACE("ERROR: cannot open MidiShare.\n");
+		rtems_task_delete(RTEMS_SELF);
+	}
+
+	rtems_task_ident(RTEMS_SELF, 0, &task_id);
+
+	MidiSetInfo(ref_midi, (void *) task_id);
+	MidiSetRcvAlarm(ref_midi, receive_alarm);
+
+	MidiConnect(0, ref_midi, TRUE);
+
+	while (TRUE)
+	{
+		status = rtems_event_receive(
+			EVENT_MIDI,
+			RTEMS_WAIT | RTEMS_EVENT_ANY,
+			RTEMS_NO_TIMEOUT,
+			&pending
+		);
+		if (status != RTEMS_SUCCESSFUL)
+			break;
+
+		ev = NULL;
+		while (MidiCountEvs(ref_midi))
+		{
+			if (ev)
+				MidiFreeEv(ev);
+
+			ev = MidiGetEv(ref_midi);
+		}
+
+		if (ev)
+		{
+			if (EvType(ev) == typeKeyOn)
+				DSP_write(MIDI_KEY_ON, MidiGetField(ev, 0));
+			else if (EvType(ev) == typeKeyOff)
+				DSP_write(MIDI_KEY_OFF, MidiGetField(ev, 0));
+		}
+	}
+
+	MidiConnect(0, ref_midi, FALSE);
+
+	MidiClose(ref_midi);
+
+	rtems_task_delete(RTEMS_SELF);
+}
+
+// Create and start the midi task that runs the function midi_task
+rtems_boolean create_midi_task(void)
+{
+  rtems_id task_id;
+  rtems_status_code status;
+
+  status = rtems_task_create(
+    rtems_build_name('T', 'M', 'I', 'D'),
+    50,
+    RTEMS_MINIMUM_STACK_SIZE,
+    RTEMS_DEFAULT_MODES,
+    RTEMS_DEFAULT_ATTRIBUTES,
+    &task_id
+  );
+  if (status != RTEMS_SUCCESSFUL) {
+    TRACE("ERROR: cannot create midi_task.\n");
+    return FALSE;
+  }
+  status = rtems_task_start(task_id, midi_task, 0);
+  if (status != RTEMS_SUCCESSFUL) {
+    TRACE("ERROR: cannot start midi_task.\n");
+    return FALSE;
+  }
+  return TRUE;
+}
+
 // Read task: read data from the DSP
 static rtems_task read_task(rtems_task_argument ignored)
 {
@@ -303,6 +411,7 @@ rtems_task rtems_main(rtems_task_argument ignored)
 {
     initialize();
     create_panel_task();
+    create_midi_task();
     create_read_task();
     rtems_task_delete(RTEMS_SELF);
 }

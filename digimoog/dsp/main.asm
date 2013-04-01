@@ -14,7 +14,7 @@
 ; - a lowpass filter, though currently with a fixed factor            *
 ;                                                                     *
 ; Non-exhaustive list of TODOs in no particular order:                *
-; - get midi working, get rid of the current panel interface          *
+; - get rid of the current panel interface                            *
 ; - non-integer periods (update midi_table.asm accordingly somehow)   *
 ; - cleaner channel management structure (including but not limited   *
 ;   to leaving more registers for init and eval routines)             *
@@ -191,6 +191,10 @@ VecHostCommandEncoderDown:
 	JSR	>EncoderDown
 VecHostCommandKeyEvent:
 	JSR	>KeyEvent
+VecHostCommandMidiKeyOn:
+	JSR >MidiKeyOn
+VecHostCommandMidiKeyOff:
+	JSR >MidiKeyOff
 
 ;**********************************************************************
 ; Program code
@@ -693,6 +697,16 @@ EncoderDown:
 	move r7,Y:PanelKeys_NoteOffset
 
 	RTI	
-	
-	end	Start
 
+MidiKeyOn:
+	BRCLR	#HSR_HRDF,X:<<HSR,*
+	MOVEP	X:<<HRX,r7
+	MOVE	r7,Y:NoteThatWentDown
+	RTI
+MidiKeyOff:
+	BRCLR	#HSR_HRDF,X:<<HSR,*
+	MOVEP	X:<<HRX,r7
+	MOVE	r7,Y:NoteThatWentUp
+	RTI
+
+	end	Start
