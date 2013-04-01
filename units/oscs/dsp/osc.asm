@@ -2,7 +2,7 @@
 ; - trivial saw wave,
 ; - dpw corrected saw wave,
 ; - trivial pulse wave (difference of two saws),
-; - dpw'd saw wave (difference of two dpw saws)
+; - dpw'd pulse wave (difference of two dpw saws)
 
 
 ; INITIALIZATION ROUTINES
