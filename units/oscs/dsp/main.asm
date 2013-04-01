@@ -37,10 +37,19 @@
 	org	X:$000000	;Denotes the the memory location where the contents of the following lines will be stored 
 ;Do your own allocations of X-memory here
 
+	include 'oscinc.asm'
+
+; OSCS: local states in this demo
+SawWorkspace	ds	SawOscSize
+DpwWorkspace	ds	DpwOscSize
+PlsWorkspace	ds	PlsOscSize
+PlsDpwWorkspace	ds	PlsDpwSize
+
 	
 	org	Y:$000000
 ;Do your own allocations of Y-memory here
 
+; OSCS: debug output here
 OutputSaw ds 1
 OutputDpw ds 1
 OutputPulse ds 1
@@ -48,6 +57,8 @@ OutputPulseSaw1 ds 1
 OutputPulseSaw2 ds 1
 OutputPulseDpw ds 1
 
+	include 'dpw_coefs.asm'
+	include 'saw_ticks.asm'
 
 ;Template related memory allocations
 MasterVolumeTarget:	;Holds the current value of volume pot (log scale $0-$7FFFFF)
@@ -127,21 +138,24 @@ Start:
 	  BRCLR	#SSISR_RFS,X:<<SSISR0,*		; Wait while receiving right frame
 	endif
 
-	; OSCS: parameters
-	; saw generation at the bottom, others computed from it
-freq	equ	400.0
-rate	equ	48000
-	move #>(freq/(rate/2.0)),r0 ; raw tick (delta) for naive saw, 2.0 because -1..1 range is 2
-	move #>-1.0,r1 ; counter (-1..1)
+	; OSCS: INIT BEGIN
+	move #>69,r4 ;#>69,r4
 
-	move #>1.0,r2 ; previous state of dpw
-	move #(rate/(4*freq*(1-freq/rate))/2048),r3 ; c coefficient for dpw, shift by 11 (max amount 1500, for freq 8Hz)
+	move #SawWorkspace,r0
+	bsr OscTrivialsawInit
 
-	move #>0,r4 ; pulse saw counter [0,1), same tick as r0
-	move #>0.345,r5 ; pulse duty cycle
+	move #DpwWorkspace,r0
+	bsr OscDpwsawInit
 
-	move #>1,r6 ; pulse dpw prev state
-	move #>(freq/(rate)),r7 ; raw tick (delta) for naive saw, [0,1)
+	move #PlsWorkspace,r0
+	move #>0.2,x1
+	bsr PlsTrivialInit
+
+	move #PlsDpwWorkspace,r0
+	move #>0.2,x1
+	bsr PlsDpwInit
+	; OSCS: INIT END
+
 MainLoop:
 
 	; *** Audio input and output are processed here ***
@@ -161,59 +175,22 @@ MainLoop:
 	MOVEP	X:<<RX0,Y0			; Read new input sample
 
 	; *** Do the processing here for left ch, Y0 holds the sample ****	
-	
-
 	; *** OSCS: CODE START
-trivialsaw:
-	move r1,a	; get counter
-	move r0,x0
-	add x0,a	; counter += tick
-	cmp #>1.0,a
-	ble _notoverflow
-		add #>-1.0,a ; "modulo" 1, wrap to around -1
-		add #>-1.0,a
-_notoverflow:
-	move a,r1	;
-	move r1,Y:OutputSaw
+	move #SawWorkspace,r0
+	bsr OscTrivialsawEval
+	move a,Y:OutputSaw
 
-dpwsaw:
-	move r1,x0
-	mpy x0,x0,a	; a = counter ^ 2
-	move a,b
-	move r2,x1
-	move a,r2	; store new state
-	sub x1,b	; differentiate
-	move b,x0
-	move r3,x1
-	mpy x0,x1,a	; out = c * dsq
-	asl #11,a,a	; fixpt coef
+	move #DpwWorkspace,r0
+	bsr OscDpwsawEval
 	move a,Y:OutputDpw
 
-trivialpulse:
-	move r4,a	; get counter
-	move r7,x0
-	add x0,a	; counter += tick
-	cmp #>1.0,a
-	ble _notoverflow
-		add #>-1.0,a ; "modulo" 1, wrap to around 0
-_notoverflow:
-	move a,r4
-	move a,Y:OutputPulseSaw1
-	move a,b
-	move r5,x0	; duty cycle
-	add x0,b	; shifted saw generator
-	cmp #>1.0,b
-	ble _notoverflow2
-		add #>-1.0,b
-_notoverflow2:
-	move b,Y:OutputPulseSaw2
-	move b,x0
-	sub x0,a	; pulse = saw difference
+	move #PlsWorkspace,r0
+	bsr OscTrivialplsEval
 	move a,Y:OutputPulse
-	
-dpwpulse:
-	move a,Y:OutputPulseDpw
 
+	move #PlsDpwWorkspace,r0
+	bsr OscDpwplsEval
+	move a,Y:OutputPulseDpw
 	; *** OSCS: CODE END
 
 	
@@ -263,6 +240,7 @@ dpwpulse:
 
 	BRA	MainLoop
 	
+	include 'osc.asm'
 
 ;*******************************************	
 ;INTERRUPT ROUTINES

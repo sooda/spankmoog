@@ -1,0 +1,7 @@
+load  "C:\Program Files\Chameleon.sdk\out\model01\debug\myprojects\oscs\dsp\main.cld"
+output #`1  y:OutputSaw "C:\Program Files\Chameleon.sdk\out\model01\debug\myprojects\saw.io" -rf
+output #`2  y:OutputDpw "C:\Program Files\Chameleon.sdk\out\model01\debug\myprojects\dpw.io" -rf
+output #`3  y:OutputPulse "C:\Program Files\Chameleon.sdk\out\model01\debug\myprojects\pulse.io" -rf
+output #`4  y:OutputPulseSaw1 "C:\Program Files\Chameleon.sdk\out\model01\debug\myprojects\pulsesaw1.io" -rf
+output #`5  y:OutputPulseSaw2 "C:\Program Files\Chameleon.sdk\out\model01\debug\myprojects\pulsesaw2.io" -rf
+output #`6  y:OutputPulseDpw "C:\Program Files\Chameleon.sdk\out\model01\debug\myprojects\pulsedpw.io" -rf
