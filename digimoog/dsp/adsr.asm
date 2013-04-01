@@ -56,12 +56,12 @@ ADSR_MODE_KILLED	equ (1<<ADSR_MODE_KILLED_BIT)
 ; Input:
 ; 	X:(r0): state pointer
 ; Work registers:
-;	r1
+;	r2
 AdsrInitState:
-	move	#>ADSR_MODE_ATTACK,r1
-	move	r1,X:(r0+AdsrStateIdx_Mode)
-	move	#>0,r1
-	move	r1,X:(r0+AdsrStateIdx_Val)
+	move	#>ADSR_MODE_ATTACK,r2
+	move	r2,X:(r0+AdsrStateIdx_Mode)
+	move	#>0,r2
+	move	r2,X:(r0+AdsrStateIdx_Val)
 	rts
 
 ; lowpassing decayer with stuff divided by 2

@@ -1,0 +1,3 @@
+lazy man's debugging tip: just shove bytes to X:<<HTX, the template 
+code's read task will print them on the panel lcd, just like it prints 
+potentiometer values etc.

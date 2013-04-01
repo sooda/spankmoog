@@ -75,12 +75,14 @@ ChannelCapacity  equ 64
 NumChannels      equ 5
 
 ; Channel data format:
-; [0]                note number (if highest bit is set, the channel is not alive)
-; [1]                oscillator eval function address
-; [2]                filter eval function address
-; [3]                filter state start address (&[4] + oscillator state size)
-; [4 and forward]    oscillator state
-; [after osc state]  filter state (this is where [3] points to)
+; [0]                      note number (if highest bit is set, the channel is not alive)
+; [1]                      oscillator eval function address
+; [2]                      filter eval function address
+; [3]                      filter state start address
+; [4 and forward]          adsr state
+; [4 + AdsrStateSize]      instrument pointer
+; [4 + AdsrStateSize + 1]  oscillator state
+; [after osc state]        filter state (this is where [3] points to)
 ChDataIdx_Note          equ 0
 ChDataIdx_OscEval       equ 1
 ChDataIdx_FiltEval      equ 2
@@ -221,7 +223,7 @@ Start:
 
 	; initialize all channels as dead
 
-	move #>$ffffff,x0
+	move #>(1<<ChNoteDeadBit),x0
 	move #ChannelData,a
 
 	do #NumChannels,DeadChannelInitLoopEnd
@@ -467,9 +469,9 @@ MainLoop:
 			move a2,X:(AccumBackup2+2)
 
 			; compute adsr envelope and apply (multiply by) it
-			lua (r1+ChDataIdx_AdsrState),r0
+			lua (r1+ChDataIdx_AdsrState),r4
 			move X:(r1+ChDataIdx_InstruPtr),r2
-			lua (r2+InstruParamIdx_Adsr),r4
+			lua (r2+InstruParamIdx_Adsr),r0
 			move X:(r1+ChDataIdx_Note),r2
 			bsr AdsrEval
 			move r3,Y:OutputAdsr
@@ -483,6 +485,7 @@ MainLoop:
 			move #0,r3
 			bset #ChNoteDeadBit,r2
 			move r2,X:(r1+ChDataIdx_Note)
+
 		_notkilled:
 			move a,x0
 			move r3,x1 ; TODO: return adsr value in x1?
