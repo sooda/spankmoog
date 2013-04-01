@@ -320,10 +320,10 @@ static rtems_task midi_task(rtems_task_argument ignored)
 
 		if (ev)
 		{
-			if (EvType(ev) == typeKeyOn)
-				DSP_write(MIDI_KEY_ON, MidiGetField(ev, 0));
-			else if (EvType(ev) == typeKeyOff)
-				DSP_write(MIDI_KEY_OFF, MidiGetField(ev, 0));
+			if (EvType(ev) == typeKeyOff || (EvType(ev) == typeKeyOn && Vel(ev) == 0))
+				DSP_write(MIDI_KEY_OFF, Pitch(ev));
+			else if (EvType(ev) == typeKeyOn)
+				DSP_write(MIDI_KEY_ON, Pitch(ev));
 		}
 	}
 
