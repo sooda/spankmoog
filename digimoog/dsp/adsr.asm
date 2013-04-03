@@ -66,7 +66,7 @@ AdsrInitState:
 
 ; lowpassing decayer with stuff divided by 2
 ; a: value
-; b: target
+; b: target (already divided by 2)
 ; r4: X state struct pointer
 ; x0: lp coefficient
 AdsrLpCareful macro
@@ -74,7 +74,7 @@ AdsrLpCareful macro
 	sub a,b		; tgt - value
 	nop		; stall :-(
 	move b,x1	; move to temp to be able to MAC
-	mac x0,x1,a	; a = 0.5*value + coeff * (0.5*top - 0.5*value)
+	mac x0,x1,a	; a = 0.5*value + coeff * (0.5*tgt - 0.5*value)
 	asl #1,a,a	; multiply back by 2
 	nop		; stall :--(
 	move a,r3	; outval = a
