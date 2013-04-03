@@ -12,14 +12,15 @@ InstruParamIdx_OscFunc	equ	1
 InstruParamIdx_FiltFunc	equ	2
 InstruParamIdx_MidiNum	equ	3
 InstruParamIdx_Adsr	equ	4
+; no size constant needed
 
 Instrument_Bass:
 	; TODO: subtract caller address from these
 	; because these are called only from a single point
 	; (bsr is pc-relative)
-	dc BassInit
-	dc BassOsc
-	dc BassFilt
+	dc BassInit-ChAlloc_InitInstruState
+	dc BassOsc-ChEval_OscEvalBranch
+	dc BassFilt-ChEval_FiltEvalBranch
 	dc 1 ; TODO: midi number
 	if !simulator
 	AdsrParamBlock 0.5,0.5,0.5,0.5

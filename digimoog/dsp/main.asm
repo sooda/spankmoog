@@ -71,6 +71,7 @@ LowpassFilterStateSize   equ 2
 ; more than needed, but doesn't matter. NOTE: this must be increased
 ; if it's not enough for some oscillator+filter combination.
 ChannelCapacity  equ 64
+OscStateCapacity equ 20 ; FIXME: just a constant sized block, hope that no one is bigger
 NumChannels      equ 5
 
 ; Channel data format:
@@ -383,7 +384,7 @@ MainLoop:
 		; find a free channel and initialize there
 		; NOTE: if no free channels are available, the new note is just ignored.
 		; TODO: the following code assumes that oscillator and filter init routines
-		;   never modify the A or r1 registers. Nobody probably cares about r1, but
+		;   never modify the A, r1 or r2 registers. Nobody probably cares about r1/r2, but
 		;   A might be nice, so if that comes up, modify this code appropriately.
 	AllocChannel:
 		move #>ChannelData,a
@@ -393,32 +394,27 @@ MainLoop:
 			move X:(r1+ChDataIdx_Note),y0
 			brclr #ChNoteDeadBit,y0,NotFreeChannel
 				move n2,X:(r1+ChDataIdx_Note)
-
-				; TODO: appropriate filter routines and their parameters
-				; TODO: load osc and filt pointers from the instrument
-
-				move #>OscTrivialsawEval,x0
-				move x0,X:(r1+ChDataIdx_OscEval)
-
-				move #>EvalLowpassFilter,x0
-				move x0,X:(r1+ChDataIdx_FiltEval)
-
-				lua (r1+ChDataIdx_OscState+SawOscSize),r0
-				move r0,X:(r1+ChDataIdx_FiltStateAddr)
-
-				lua (r1+ChDataIdx_OscState),r0
-				move n2,r4
-				bsr OscTrivialsawInit
-
+				; r1: workspace pointer
+				; r2: instrument pointer
 				lua (r1+ChDataIdx_AdsrState),r0
 				bsr AdsrInitState
 
-				move #>Instrument_Bass,x0
-				move x0,X:(r1+ChDataIdx_InstruPtr)
+				move #>Instrument_Bass,r2 ; TODO: select instrument somehow
+				move r2,X:(r1+ChDataIdx_InstruPtr)
 
-				move X:(r1+ChDataIdx_FiltStateAddr),r0
-				move #>300,x0 ; NOTE: this (cutoff for lowpass) is currently ignored, must fix the lowpass init routine
-				bsr InitLowpassFilter
+				; eliminate another pointer indirection in eval loop
+				; cache oscillator and filter eval functions
+				move Y:(r2+InstruParamIdx_OscFunc),x0
+				move x0,X:(r1+ChDataIdx_OscEval)
+				move Y:(r2+InstruParamIdx_FiltFunc),x0
+				move x0,X:(r1+ChDataIdx_FiltEval)
+
+				lua (r1+ChDataIdx_OscState+OscStateCapacity),r0
+				move r0,X:(r1+ChDataIdx_FiltStateAddr)
+
+				lua (r2+InstruParamIdx_InitFunc),r0
+				ChAlloc_InitInstruState:
+				bsr r2
 
 				enddo
 			NotFreeChannel:
@@ -445,18 +441,14 @@ MainLoop:
 		
 			; evaluate oscillator
 			lua (r1+ChDataIdx_OscState),r0
-			move X:(r1+ChDataIdx_OscEval),b1
-			sub #>ChEval_OscEvalBranch,b
-			move b1,r2
+			move X:(r1+ChDataIdx_OscEval),r2
 			ChEval_OscEvalBranch:
 			bsr r2
 			move a,Y:OutputOsc
 
 			; evaluate filter
 			move X:(r1+ChDataIdx_FiltStateAddr),r0
-			move X:(r1+ChDataIdx_FiltEval),b1
-			sub #>ChEval_FiltEvalBranch,b
-			move b1,r2
+			move X:(r1+ChDataIdx_FiltEval),r2
 			ChEval_FiltEvalBranch:
 			bsr r2
 			move a,Y:OutputMiddle
