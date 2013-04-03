@@ -609,6 +609,7 @@ UpdateCTRL3:
 	BRCLR	#HSR_HRDF,X:<<HSR,*
 	MOVEP	X:<<HRX,r7
 	MOVE	r7,Y:CTRL3Value
+	move	Y:OutputL,r7
 	MOVEP	r7,X:<<HTX
 	RTI
 KeyEvent:
