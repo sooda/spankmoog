@@ -12,4 +12,4 @@ AdsrParamBlock	macro	At,Dt,Sl,Rt
 	dc	(1-@POW(E,-1.0/(Rt*RATE)))
 	endm
 
-AdsrStateSize     equ	3
+AdsrStateSize     equ	4
