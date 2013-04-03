@@ -412,9 +412,9 @@ MainLoop:
 				lua (r1+ChDataIdx_OscState+OscStateCapacity),r0
 				move r0,X:(r1+ChDataIdx_FiltStateAddr)
 
-				lua (r2+InstruParamIdx_InitFunc),r0
+				move Y:(r2+InstruParamIdx_InitFunc),r0
 				ChAlloc_InitInstruState:
-				bsr r2
+				bsr r0
 
 				enddo
 			NotFreeChannel:
