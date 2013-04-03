@@ -240,7 +240,7 @@ Start:
 	move #>0,x0
 	move x0,Y:PrevKeypadState
 	move x0,Y:KeypadState
-	move x0,Y:LolTimer
+	move x0,X:LolTimer
 
 MainLoop:
 	; temporary, ugly code for converting chameleon panel key presses to note values.
@@ -251,9 +251,9 @@ MainLoop:
 
 	if simulator
 		; simulate a keypress
-		move Y:LolTimer,a
+		move X:LolTimer,a
 		add #>1,a
-		move a,Y:LolTimer
+		move a,X:LolTimer
 		cmp #>500,a
 		bge _keyoff
 	_keyon:
