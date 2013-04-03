@@ -240,6 +240,7 @@ Start:
 
 	move #>0,x0
 	move x0,Y:PrevKeypadState
+	move x0,Y:KeypadState
 	move x0,Y:LolTimer
 
 MainLoop:
