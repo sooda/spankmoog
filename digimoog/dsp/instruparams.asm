@@ -12,7 +12,10 @@ InstruParamIdx_OscFunc	equ	1
 InstruParamIdx_FiltFunc	equ	2
 InstruParamIdx_MidiNum	equ	3
 InstruParamIdx_Adsr	equ	4
+InstruParamIdx_End	equ	4+AdsrStateSize
 ; no size constant needed
+
+InstruBassIdx_Lp	equ	InstruParamIdx_End
 
 Instrument_Bass:
 	; TODO: subtract caller address from these
@@ -27,4 +30,4 @@ Instrument_Bass:
 	else
 	AdsrParamBlock 0.005,0.005,0.5,0.005
 	endif
-
+ankka	FiltTrivialLpParams 5000 ; TODO: a better way to tune these via the panel

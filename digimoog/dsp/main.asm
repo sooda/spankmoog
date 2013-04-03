@@ -12,18 +12,13 @@
 ;   (somewhat buggy and such, but will be removed anyway)             *
 ; - midi key on and key off input (velocity currently ignored)        *
 ; - Some oscillators (saw, dpw, pulse, dpw pulse)                     *
-; - a lowpass filter, though currently with a fixed factor            *
+; - framework for implementing several filters/effects                *
 ;                                                                     *
 ; Non-exhaustive list of TODOs in no particular order:                *
 ; - get rid of the current panel interface                            *
-; - cleaner channel management structure (including but not limited   *
-;   to leaving more registers for init and eval routines)             *
 ; - way to specify the instrument at runtime                          *
 ; - ADSR and LFO for filters                                          *
 ; - more interesting instruments                                      *
-; - fix lowpass init routine                                          *
-; - well-thought input and output sample passing conventions (what    *
-;   registers etc)                                                    *
 ; - fix, optimize and prettify all the things                         *
 ;                                                                     *
 ; Some basic stuff based on:                                          *
@@ -61,10 +56,9 @@ PI	equ	3.14159265
 RATE	equ	48000
 DT	equ	1.0/RATE
 
-	include 'adsrinc.asm'
 	include 'oscinc.asm'
-
-LowpassFilterStateSize   equ 2
+	include 'filtinc.asm'
+	include 'adsrinc.asm'
 
 ; ChannelCapacity is the fixed size for each channel.
 ; Depending on the actual oscillator and filter state sizes, this may be
@@ -518,71 +512,11 @@ MainLoop:
 
 
 	BRA	MainLoop
-	
-
-;***********************************************************************
-; FILTER ROUTINES (init and eval per filter)
-;
-; Init routine params depend on filter type, but r0 always points
-; to the X memory where state is to be stored.
-; NOTE: currently it's assumed that filter init routines never modify
-; the A or r1 registers. (It might be nice to have A available as well.
-; See the TODO earlier in this file.)
-;
-; Eval routine calling convention:
-;	Input:
-;		- a: input sample
-;		- X:(r0) and forward: filter-dependent state
-;	Output:
-;		- a: output sample
-;	NOTE: currently it's assumed that filter eval routines never modify
-;	the r1 register.
-;
-; Note that each filter type has an equ-defined state size in the
-; beginning-ish of this file, e.g. LowpassFilterStateSize is 2.
-;***********************************************************************
-
-; *** Lowpass filter ***
-;
-; State: smoothening factor (1 word), previous output (1 word, TODO: is 24 bits enough or do we want 2 words?)
-
-; Init param: x0: cutoff frequency
-InitLowpassFilter:
-	move #0.0,x1
-	move x1,X:(r0+1)	; initial "previous value" = 0.0
-
-	;move #DT,a
-	;move #(1.0/(2.0*PI)),x1
-	;move a,b
-	;mac x0,x1,a
-	;move a1,x1
-	; now b = DT, x1 = (freq * (1 / (2*PI)) + DT)
-	; TODO: can we do a good enough approximation or something and avoid division?
-	;rep #24
-	;	div x1,b
-
-	; TODO: fix the above code. something hairy about the div or something? haven't really looked into it yet.
-	;   the next instruction is just a dummy replacement for the above.
-
-	move #0.4,b0
-
-	move b0,X:(r0)
-
-	rts
-
-EvalLowpassFilter:
-	move a,b
-	move X:(r0+1),a ; a = previous
-	move X:(r0),y1  ; y1 = factor
-	sub a,b
-	move b,x1       ; x1 = input - previous
-	mac x1,y1,a     ; a = previous + factor * (input - previous)
-	move a,X:(r0+1)
-	rts
 
 	include 'instrucode.asm'
 	include 'adsr.asm'
 	include 'osc.asm'
+	include 'filt.asm'
 
 ;*******************************************	
 ;INTERRUPT ROUTINES
@@ -597,6 +531,7 @@ UpdateCTRL1:
 	BRCLR	#HSR_HRDF,X:<<HSR,*
 	MOVEP	X:<<HRX,r7
 	MOVE	r7,Y:CTRL1Value
+	move	r7,y:ankka
 	MOVEP	r7,X:<<HTX
 	RTI
 UpdateCTRL2:

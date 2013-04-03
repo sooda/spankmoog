@@ -65,7 +65,12 @@ void show_data(rtems_signed32 data)
 
 char DSP_write(rtems_unsigned32 event, rtems_unsigned32 data)
 {
-	
+	float dt = 1.0 / 48000;
+	float pi = 3.14159;
+	float ankka = (float)data / 0xffffff; // 0..1
+	float freq = ankka * 16000;
+	float c = (dt * 2 * pi * freq) / (dt * 2 * pi * freq + 1);
+	rtems_unsigned32 c_fixpt = c * 0x7fffff;
 	switch(event)
 	{
 	case PANEL01_POT_VOLUME:
@@ -77,7 +82,7 @@ char DSP_write(rtems_unsigned32 event, rtems_unsigned32 data)
 			Error("ERROR: cannot write command to DSP.\n");
 		return 1;
 	case PANEL01_POT_CTRL1:
-	        if (!dsp_write_data(dsp, &data, 1))
+	        if (!dsp_write_data(dsp, &c_fixpt, 1))
 	                Error("ERROR: cannot write data to DSP.\n");
 	        if (!dsp_write_command(dsp, DSPP_VecHostCommandUpdateCTRL1/2, TRUE))
 			Error("ERROR: cannot write command to DSP.\n");
@@ -198,7 +203,7 @@ static rtems_task panel_task(rtems_task_argument argument)
 			       	panel_out_lcd_print(panel, 0, 0, "Volume:         ");
 			       	break;
 	                case PANEL01_POT_CTRL1:		
-	                    	DSP_write(PANEL01_POT_CTRL1,linear_table[value]);
+	                    	DSP_write(PANEL01_POT_CTRL1,volume_table[value]);
 			    	panel_out_lcd_print(panel, 0, 0, "Ctrl1:          ");
 			       	break;
 	                case PANEL01_POT_CTRL2:		

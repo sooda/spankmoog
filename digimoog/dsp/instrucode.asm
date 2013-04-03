@@ -3,17 +3,17 @@
 ; args: r1: workspace, r2: instrument, n2: note number
 BassInit:
 	lua (r1+ChDataIdx_OscState+OscStateCapacity),r0
-	move #>300,x0 ; NOTE: this (cutoff for lowpass) is currently ignored, must fix the lowpass init routine
-	bsr InitLowpassFilter
+	lua (r2+InstruBassIdx_Lp),r4
+	bsr FiltTrivialLpInit
 
 	lua (r1+ChDataIdx_OscState),r0
 	move n2,r4
-	bsr OscTrivialsawInit
+	bsr OscDpwsawInit
 
 	rts
 
 BassOsc:
-	bra OscTrivialsawEval
+	bra OscDpwsawEval
 
 BassFilt:
-	bra EvalLowpassFilter
+	bra FiltTrivialLpEval
