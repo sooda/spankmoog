@@ -13,7 +13,8 @@ EXTRAGOALS := dsp_code.h
 DSPDEPENDS := \
 	adsr.asm adsrinc.asm \
 	instrucode.asm instruparams.asm \
-	midi_table.asm
+	osc.asm oscinc.asm \
+	dpw_coefs.asm saw_ticks.asm
 
 include /Chameleon.sdk/make/maindsp.mak
 

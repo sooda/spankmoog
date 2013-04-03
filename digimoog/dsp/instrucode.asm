@@ -1,10 +1,10 @@
 ; dummy jumps, same data pointers, do something clever later after this even works
 
 BassInit:
-	bra InitPulseOscillator
+	bra OscTrivialsawInit
 
 BassOsc:
-	bra EvalPulseOscillator
+	bra OscTrivialsawEval
 
 BassFilt:
 	bra EvalLowpassFilter

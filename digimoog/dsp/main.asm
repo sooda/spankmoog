@@ -11,12 +11,11 @@
 ; - chameleon's panel buttons play some notes, encoder changes octave *
 ;   (somewhat buggy and such, but will be removed anyway)             *
 ; - midi key on and key off input (velocity currently ignored)        *
-; - a pretty naive pulse oscillator (integer-length periods only)     *
+; - Some oscillators (saw, dpw, pulse, dpw pulse)                     *
 ; - a lowpass filter, though currently with a fixed factor            *
 ;                                                                     *
 ; Non-exhaustive list of TODOs in no particular order:                *
 ; - get rid of the current panel interface                            *
-; - non-integer periods (update midi_table.asm accordingly somehow)   *
 ; - cleaner channel management structure (including but not limited   *
 ;   to leaving more registers for init and eval routines)             *
 ; - way to specify the instrument at runtime                          *
@@ -24,8 +23,7 @@
 ; - more interesting instruments                                      *
 ; - fix lowpass init routine                                          *
 ; - well-thought input and output sample passing conventions (what    *
-;   registers etc; currently oscillator outputs to x0 and filter      *
-;   inputs and outputs from/to A. rather arbitrary, yes)              *
+;   registers etc)                                                    *
 ; - fix, optimize and prettify all the things                         *
 ;                                                                     *
 ; Some basic stuff based on:                                          *
@@ -64,8 +62,8 @@ RATE	equ	48000
 DT	equ	1.0/RATE
 
 	include 'adsrinc.asm'
+	include 'oscinc.asm'
 
-PulseOscillatorStateSize equ 2
 LowpassFilterStateSize   equ 2
 
 ; ChannelCapacity is the fixed size for each channel.
@@ -134,10 +132,7 @@ AccumBackup ds 3
 AccumBackup2 ds 3
 LolTimer ds 1
 
-	include "midi_table.asm"
-
 	org	Y:$000000
-	include 'instruparams.asm'
 
 MasterVolume:		
 	ds	1		
@@ -176,6 +171,9 @@ OutputAdsr:
 OutputOsc:
 	ds 1
 
+	include 'instruparams.asm'
+	include 'dpw_coefs.asm'
+	include 'saw_ticks.asm'
 ;**********************************************************************
 ; Interrupt vectors
 ;**********************************************************************
@@ -225,12 +223,12 @@ Start:
 	; initialize all channels as dead
 
 	move #>(1<<ChNoteDeadBit),x0
-	move #ChannelData,a
+	move #>ChannelData,a
 
 	do #NumChannels,DeadChannelInitLoopEnd
 		move a1,r1
 		move x0,X:(r1+ChDataIdx_Note)
-		add #ChannelCapacity,a
+		add #>ChannelCapacity,a
 	DeadChannelInitLoopEnd:
 
 	; no note has just went up or down
@@ -359,7 +357,7 @@ MainLoop:
 		; (don't actually kill, but turn up the key off bit)
 		; this starts the decay phase, and the ADSR kills this channel after having decayed to silence
 
-		move #ChannelData,a
+		move #>ChannelData,a
 		do #NumChannels,ChannelKillLoopEnd
 			move a1,r1
 
@@ -371,7 +369,7 @@ MainLoop:
 				enddo
 			NotTheNoteToKill:
 
-			add #ChannelCapacity,a
+			add #>ChannelCapacity,a
 		ChannelKillLoopEnd:
 	NoNoteWentUp:
 
@@ -387,8 +385,8 @@ MainLoop:
 		; TODO: the following code assumes that oscillator and filter init routines
 		;   never modify the A or r1 registers. Nobody probably cares about r1, but
 		;   A might be nice, so if that comes up, modify this code appropriately.
-
-		move #ChannelData,a
+	AllocChannel:
+		move #>ChannelData,a
 		do #NumChannels,ChannelAllocationLoopEnd
 			move a1,r1
 
@@ -396,26 +394,26 @@ MainLoop:
 			brclr #ChNoteDeadBit,y0,NotFreeChannel
 				move n2,X:(r1+ChDataIdx_Note)
 
-				; TODO: appropriate oscillator and filter routines and their parameters
+				; TODO: appropriate filter routines and their parameters
+				; TODO: load osc and filt pointers from the instrument
 
-				move #EvalPulseOscillator,x0
+				move #>OscTrivialsawEval,x0
 				move x0,X:(r1+ChDataIdx_OscEval)
 
-				move #EvalLowpassFilter,x0
+				move #>EvalLowpassFilter,x0
 				move x0,X:(r1+ChDataIdx_FiltEval)
 
-				lua (r1+ChDataIdx_OscState+PulseOscillatorStateSize),r0
+				lua (r1+ChDataIdx_OscState+SawOscSize),r0
 				move r0,X:(r1+ChDataIdx_FiltStateAddr)
 
 				lua (r1+ChDataIdx_OscState),r0
-				move #NotePeriod,r2
-				move X:(r2+n2),x0
-				bsr InitPulseOscillator
+				move n2,r4
+				bsr OscTrivialsawInit
 
 				lua (r1+ChDataIdx_AdsrState),r0
 				bsr AdsrInitState
 
-				move #Instrument_Bass,x0
+				move #>Instrument_Bass,x0
 				move x0,X:(r1+ChDataIdx_InstruPtr)
 
 				move X:(r1+ChDataIdx_FiltStateAddr),r0
@@ -425,15 +423,16 @@ MainLoop:
 				enddo
 			NotFreeChannel:
 
-			add #ChannelCapacity,a
+			add #>ChannelCapacity,a
 
 		ChannelAllocationLoopEnd:
 	NoNoteWentDown:
 
 	; evaluate channels, sum into b
 
+	RenderSample:
 	clr b
-	move #ChannelData,r1
+	move #>ChannelData,r1
 
 	do #NumChannels,ChannelEvaluateLoopEnd
 		move X:(r1+ChDataIdx_Note),y0
@@ -447,19 +446,16 @@ MainLoop:
 			; evaluate oscillator
 			lua (r1+ChDataIdx_OscState),r0
 			move X:(r1+ChDataIdx_OscEval),b1
-			sub #ChEval_OscEvalBranch,b
+			sub #>ChEval_OscEvalBranch,b
 			move b1,r2
 			ChEval_OscEvalBranch:
 			bsr r2
-
-			move x0,Y:OutputOsc
-			; sample from x0 to a
-			move x0,a
+			move a,Y:OutputOsc
 
 			; evaluate filter
 			move X:(r1+ChDataIdx_FiltStateAddr),r0
 			move X:(r1+ChDataIdx_FiltEval),b1
-			sub #ChEval_FiltEvalBranch,b
+			sub #>ChEval_FiltEvalBranch,b
 			move b1,r2
 			ChEval_FiltEvalBranch:
 			bsr r2
@@ -484,7 +480,7 @@ MainLoop:
 
 			brclr #23,r3,_notkilled ; negative -> killed?
 		_killthischannel:
-			move #0,r3
+			move #>0,r3
 			bset #ChNoteDeadBit,r2
 			move r2,X:(r1+ChDataIdx_Note)
 
@@ -502,7 +498,7 @@ MainLoop:
 		DeadChannel:
 
 		move r1,a
-		add #ChannelCapacity,a
+		add #>ChannelCapacity,a
 		move a,r1
 	ChannelEvaluateLoopEnd:
 
@@ -530,65 +526,6 @@ MainLoop:
 
 
 	BRA	MainLoop
-	
-
-;***************************************************************************
-; OSCILLATOR ROUTINES (init and eval per oscillator)
-;
-; Init routine calling convention:
-;	Input:
-;		- x0: period length
-;		- r0: X mem address for memory for oscillator-dependent state
-;	No output, but modifies X:(r0+i) for 0 <= i < StateSize, where StateSize
-;		depends on oscillator type
-;	NOTE: currently it's assumed that oscillator init routines never modify
-;	the A or r1 registers. (It might be nice to have A available as well.
-;	See the TODO earlier in this file.)
-;
-; Eval routine calling convention:
-;	Input:
-;		- X:(r0) and forward: oscillator-dependent state
-;	Output:
-;		- x0: output sample
-;	NOTE: currently it's assumed that oscillator eval routines never modify
-;	the r1 register.
-;
-; Note that each oscillator type has an equ-defined state size in the
-; beginning-ish of this file, e.g. PulseOscillatorStateSize is 2.
-;***************************************************************************
-
-
-; *** Pulse oscillator ***
-;
-; Outputs -1.0 for first PL/2 samples, then 1.0-eps for PL - PL/2 samples, and repeats
-; State: period length (PL) (1 word), period counter (PCo) (1 word)
-; TODO: check for off-by-one errors in pulse lengths; optimize
-; BETTER TODO: re-write so that it works with non-integer periods.
-
-InitPulseOscillator:
-	move x0,X:(r0)
-	move x0,X:(r0+1)
-	rts
-
-EvalPulseOscillator:
-	move #-1.0,x0
-	clr a
-	move X:(r0),a1
-	lsr a                 ; a1 = PL/2, rest of a is 0
-	clr b
-	move X:(r0+1),b1      ; b1 = PCo, rest of b is 0
-	cmp a,b
-	bgt EPO_NoHighPulse   ; if PCo > PL/2, don't set 1.0-eps to A
-		move #1.0,x0
-	EPO_NoHighPulse:
-	
-	sub #>1,b             ; decrement period counter
-	bne	EPO_NoRestart
-		move X:(r0),b1    ; restart counter if needed
-	EPO_NoRestart:
-	move b1,X:(r0+1)      ; put period counter back to state memory
-
-	rts
 	
 
 ;***********************************************************************
@@ -653,6 +590,7 @@ EvalLowpassFilter:
 
 	include 'instrucode.asm'
 	include 'adsr.asm'
+	include 'osc.asm'
 
 ;*******************************************	
 ;INTERRUPT ROUTINES
