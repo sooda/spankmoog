@@ -64,8 +64,8 @@ DT	equ	1.0/RATE
 ; Depending on the actual oscillator and filter state sizes, this may be
 ; more than needed, but doesn't matter. NOTE: this must be increased
 ; if it's not enough for some oscillator+filter combination.
-ChannelCapacity  equ 64
-OscStateCapacity equ 20 ; FIXME: just a constant sized block, hope that no one is bigger
+ChannelCapacity  equ 32
+OscStateCapacity equ 16 ; FIXME: just a constant sized block, hope that no one is bigger
 NumChannels      equ 5
 
 ; Channel data format:
@@ -375,14 +375,10 @@ MainLoop:
 
 		; find a free channel and initialize there
 		; NOTE: if no free channels are available, the new note is just ignored.
-		; TODO: the following code assumes that instrument (or oscillator and filter) init routines
-		;   never modify the A, r1 or r4 registers. Nobody probably cares about r1/r4, but
-		;   A might be nice, so if that comes up, modify this code appropriately.
+		; NOTE: the inits must not edit r1 or r4.
 	AllocChannel:
-		move #>ChannelData,a
+		move #>ChannelData,r1
 		do #NumChannels,ChannelAllocationLoopEnd
-			move a1,r1
-
 			move X:(r1+ChDataIdx_Note),y0
 			brclr #ChNoteDeadBit,y0,NotFreeChannel
 				move n2,X:(r1+ChDataIdx_Note)
@@ -401,11 +397,10 @@ MainLoop:
 				ChAlloc_InitInstruState:
 				bsr r0
 
-				enddo
+				enddo ; too near the loop end
+				nop
 			NotFreeChannel:
-
-			add #>ChannelCapacity,a
-
+			lea (r1+ChannelCapacity),r1
 		ChannelAllocationLoopEnd:
 	NoNoteWentDown:
 
@@ -477,9 +472,7 @@ MainLoop:
 			maci #1.0/NumChannels,x0,b
 		DeadChannel:
 
-		move r1,a
-		add #>ChannelCapacity,a
-		move a,r1
+		lua (r1+ChannelCapacity),r1
 	ChannelEvaluateLoopEnd:
 
 	move b,y0
