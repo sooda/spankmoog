@@ -3,10 +3,10 @@ FiltTrivialLpParamsIdx_Coef	equ	0
 FiltTrivialLpStateIdx_Val	equ	0
 FiltTrivialLpStateIdx_Coef	equ	1
 
-; args: workspace at X:(r0), params at Y:(r4)
+; args: workspace at X:(r0), params at Y:(r5)
 ; work regs: x1
 FiltTrivialLpInit:
-	move Y:(r4+FiltTrivialLpParamsIdx_Coef),x1
+	move Y:(r5+FiltTrivialLpParamsIdx_Coef),x1
 	move x1,X:(r0+FiltTrivialLpStateIdx_Coef)
 	move #>0,x1
 	move x1,X:(r0+FiltTrivialLpStateIdx_Val)

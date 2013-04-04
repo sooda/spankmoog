@@ -31,3 +31,18 @@ Instrument_Bass:
 	AdsrParamBlock 0.005,0.005,0.5,0.005
 	endif
 ankka	FiltTrivialLpParams 5000 ; TODO: a better way to tune these via the panel
+
+; CALLING CONVENTION
+; Init:
+; 	args:
+;		X:r1: workspace
+;		Y:r4: instrument
+;		n2: note number
+; Osc:
+;	as with plain oscillators, and then some
+;	args:
+;		X:r0: state
+;		X:r1: channel pointer
+;		X:r4: instrument pointer
+	; input and output: A
+

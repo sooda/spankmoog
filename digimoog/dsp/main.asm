@@ -377,8 +377,8 @@ MainLoop:
 
 		; find a free channel and initialize there
 		; NOTE: if no free channels are available, the new note is just ignored.
-		; TODO: the following code assumes that oscillator and filter init routines
-		;   never modify the A, r1 or r2 registers. Nobody probably cares about r1/r2, but
+		; TODO: the following code assumes that instrument (or oscillator and filter) init routines
+		;   never modify the A, r1 or r4 registers. Nobody probably cares about r1/r4, but
 		;   A might be nice, so if that comes up, modify this code appropriately.
 	AllocChannel:
 		move #>ChannelData,a
@@ -389,24 +389,24 @@ MainLoop:
 			brclr #ChNoteDeadBit,y0,NotFreeChannel
 				move n2,X:(r1+ChDataIdx_Note)
 				; r1: workspace pointer
-				; r2: instrument pointer
+				; r4: instrument pointer
 				lua (r1+ChDataIdx_AdsrState),r0
 				bsr AdsrInitState
 
-				move #>Instrument_Bass,r2 ; TODO: select instrument somehow
-				move r2,X:(r1+ChDataIdx_InstruPtr)
+				move #>Instrument_Bass,r4 ; TODO: select instrument somehow
+				move r4,X:(r1+ChDataIdx_InstruPtr)
 
 				; eliminate another pointer indirection in eval loop
 				; cache oscillator and filter eval functions
-				move Y:(r2+InstruParamIdx_OscFunc),x0
+				move Y:(r4+InstruParamIdx_OscFunc),x0
 				move x0,X:(r1+ChDataIdx_OscEval)
-				move Y:(r2+InstruParamIdx_FiltFunc),x0
+				move Y:(r4+InstruParamIdx_FiltFunc),x0
 				move x0,X:(r1+ChDataIdx_FiltEval)
 
 				lua (r1+ChDataIdx_OscState+OscStateCapacity),r0
 				move r0,X:(r1+ChDataIdx_FiltStateAddr)
 
-				move Y:(r2+InstruParamIdx_InitFunc),r0
+				move Y:(r4+InstruParamIdx_InitFunc),r0
 				ChAlloc_InitInstruState:
 				bsr r0
 
@@ -432,6 +432,8 @@ MainLoop:
 			move b0,X:(AccumBackup)
 			move b1,X:(AccumBackup+1)
 			move b2,X:(AccumBackup+2)
+
+			move X:(r1+ChDataIdx_InstruPtr),r4
 		
 			; evaluate oscillator
 			lua (r1+ChDataIdx_OscState),r0
@@ -453,9 +455,8 @@ MainLoop:
 			move a2,X:(AccumBackup2+2)
 
 			; compute adsr envelope and apply (multiply by) it
+			lua (r4+InstruParamIdx_Adsr),r0
 			lua (r1+ChDataIdx_AdsrState),r4
-			move X:(r1+ChDataIdx_InstruPtr),r2
-			lua (r2+InstruParamIdx_Adsr),r0
 			move X:(r1+ChDataIdx_Note),r2
 			bsr AdsrEval
 			move r3,Y:OutputAdsr

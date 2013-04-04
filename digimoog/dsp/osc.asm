@@ -6,6 +6,8 @@
 
 
 ; INITIALIZATION ROUTINES
+; TODO: start from 0, not -1? (not possible with pulse...)
+; many states depend on previous value, maybe change them all to -1?
 
 ; args: workspace at X:(r0), note number at r4
 ; work regs: x1
