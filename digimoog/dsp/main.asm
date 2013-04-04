@@ -78,12 +78,10 @@ NumChannels      equ 5
 ; [4 + AdsrStateSize + 1]  oscillator state
 ; [after osc state]        filter state (this is where [3] points to)
 ChDataIdx_Note          equ 0
-ChDataIdx_OscEval       equ 1
-ChDataIdx_FiltEval      equ 2
-ChDataIdx_FiltStateAddr equ 3
-ChDataIdx_AdsrState     equ 4
-ChDataIdx_InstruPtr     equ (4+AdsrStateSize)
-ChDataIdx_OscState      equ (4+AdsrStateSize+1)
+ChDataIdx_FiltStateAddr equ 1
+ChDataIdx_AdsrState     equ 2
+ChDataIdx_InstruPtr     equ (2+AdsrStateSize)
+ChDataIdx_OscState      equ (2+AdsrStateSize+1)
 
 ChNoteDeadBit           equ 23
 ChNoteKeyoffBit         equ 22
@@ -396,13 +394,6 @@ MainLoop:
 				move #>Instrument_Bass,r4 ; TODO: select instrument somehow
 				move r4,X:(r1+ChDataIdx_InstruPtr)
 
-				; eliminate another pointer indirection in eval loop
-				; cache oscillator and filter eval functions
-				move Y:(r4+InstruParamIdx_OscFunc),x0
-				move x0,X:(r1+ChDataIdx_OscEval)
-				move Y:(r4+InstruParamIdx_FiltFunc),x0
-				move x0,X:(r1+ChDataIdx_FiltEval)
-
 				lua (r1+ChDataIdx_OscState+OscStateCapacity),r0
 				move r0,X:(r1+ChDataIdx_FiltStateAddr)
 
@@ -437,14 +428,16 @@ MainLoop:
 		
 			; evaluate oscillator
 			lua (r1+ChDataIdx_OscState),r0
-			move X:(r1+ChDataIdx_OscEval),r2
+			move Y:(r4+InstruParamIdx_OscFunc),r2
+			nop
 			ChEval_OscEvalBranch:
 			bsr r2
 			move a,Y:OutputOsc
 
 			; evaluate filter
 			move X:(r1+ChDataIdx_FiltStateAddr),r0
-			move X:(r1+ChDataIdx_FiltEval),r2
+			move Y:(r4+InstruParamIdx_FiltFunc),r2
+			nop
 			ChEval_FiltEvalBranch:
 			bsr r2
 			move a,Y:OutputMiddle
