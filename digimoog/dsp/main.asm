@@ -234,7 +234,38 @@ Start:
 	move x0,Y:KeypadState
 	move x0,X:LolTimer
 
+	; The cycle count is computed with a free-running timer in the background
+	; The counter increments by one every 2 cycles
+
+	; timer prescale load: just in case, reset the source to clk/2
+	move #>0,x0
+	move x0,X:<<TPLR
+	; load reg, start counting from here
+	move #>0,x0
+	move x0,X:<<TLR0
+
 MainLoop:
+	; reset the counter control reg first
+	move #>0,x0
+	move x0,X:<<TCSR0
+	; TRM bit (restart mode) cleared -> free running counter
+	; tc0|tc1: mode 3 = event counter (just count clock cycles)
+	move #>(TCSR_TC0|TCSR_TC1|TCSR_TE),x0
+	move x0,X:<<TCSR0 ; mode 3, enable
+	; it seems that we need these nops first to correctly count the work cycles
+	; (could as well just add 4 to the counter when displaying it)
+	nop
+	nop
+	nop
+	nop
+	; timed code seems to start from here
+	; for example, with these nops we get the number 1 out of TCR0 (with 1 nop, value 0, with 3, value 1 again)
+	;nop
+	;nop
+	;move X:TCR0,a
+	;asl #1,a,a
+	;move a,X:<<HTX
+
 	; temporary, ugly code for converting chameleon panel key presses to note values.
 	; the encoder modifies an offset added to every note (note that you need only turn the knob
 	; slightly to get to the higher notes)
@@ -477,6 +508,12 @@ MainLoop:
 
 	move b,y0
 	
+	; display the clock ticks on the panel
+	; FIXME: this replaces the pot readings - bind printing to a panel button?
+	move X:TCR0,a
+	asl #1,a,a
+	movep a,X:<<HTX
+
 	;Output routines for left Ch
 	MOVE	Y:MasterVolume,X0		; Current volume value from memory to X0
 	MOVE	Y0,Y:OutputL			; Move the output value to memory for simulator use
