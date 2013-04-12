@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <string.h>
 #include <rtems.h>
 #include <midishare.h>
 #include <chameleon.h>
@@ -19,12 +20,6 @@
 
 #include "seq.h"
 
-#define	KEYPAD_EVENT	4
-#define ENCODER_UP	5
-#define ENCODER_DOWN	6
-
-#define MIDI_KEY_ON	7
-#define MIDI_KEY_OFF	8
 
 // Required definitions for a Chameleon application
 /**********************************************************************/
@@ -53,89 +48,17 @@ void show_data(rtems_signed32 data)
   panel_out_lcd_print(panel, 1, 0, str);
 }
 
-//** DSP_write ********************************************************************
-// 
-// Description:	Function for writing commands and data to the DSP
-//
-// Parameters:  rtems_unsigned32 event 		
-//			-type of the event that is to be forwarded to the DSP 
-// 		rtems_signed32 data	
-//			-data value to be sent, for example potentiometer position
-//
-// Returns: 	TRUE if successful
-//
-//*********************************************************************************
-
-char DSP_write(rtems_unsigned32 event, rtems_unsigned32 data)
+void DSP_write_cmd(rtems_unsigned32 vecnum)
 {
-	float dt = 1.0 / 48000;
-	float pi = 3.14159;
-	float ankka = (float)data / 0xffffff; // 0..1
-	float freq = ankka * 16000;
-	float c = (dt * 2 * pi * freq) / (dt * 2 * pi * freq + 1);
-	rtems_unsigned32 c_fixpt = c * 0x7fffff;
-	switch(event)
-	{
-	case PANEL01_POT_VOLUME:
-	        //First, the data is written to the HI08 port
-	        if (!dsp_write_data(dsp, &data, 1))
-	                Error("ERROR: cannot write data to DSP.\n");
-	        //then, a command is sent to interrupt the DSP and execute the appropriate interrupt routine
-	        if (!dsp_write_command(dsp, DSPP_VecHostCommandUpdateVolume/2, TRUE))
-			Error("ERROR: cannot write command to DSP.\n");
-		return 1;
-	case PANEL01_POT_CTRL1:
-	        if (!dsp_write_data(dsp, &c_fixpt, 1))
-	                Error("ERROR: cannot write data to DSP.\n");
-	        if (!dsp_write_command(dsp, DSPP_VecHostCommandUpdateCTRL1/2, TRUE))
-			Error("ERROR: cannot write command to DSP.\n");
-		return 1;
-	case PANEL01_POT_CTRL2:
-	        if (!dsp_write_data(dsp, &data, 1))
-	                Error("ERROR: cannot write data to DSP.\n");
-	        if (!dsp_write_command(dsp, DSPP_VecHostCommandUpdateCTRL2/2, TRUE))
-			Error("ERROR: cannot write command to DSP.\n");
-		return 1;
-	case PANEL01_POT_CTRL3:
-	        if (!dsp_write_data(dsp, &data, 1))
-	                Error("ERROR: cannot write data to DSP.\n");
-	        if (!dsp_write_command(dsp, DSPP_VecHostCommandUpdateCTRL3/2, TRUE))
-			Error("ERROR: cannot write command to DSP.\n");
-	  	return 1;
-	case KEYPAD_EVENT:
-		if (!dsp_write_data(dsp, &data, 1))
-	                Error("ERROR: cannot write data to DSP.\n");
-	        if (!dsp_write_command(dsp, DSPP_VecHostCommandKeyEvent/2, TRUE))
-			Error("ERROR: cannot write command to DSP.\n");
-		return 1;
-	case ENCODER_UP:
-	        //No data written, just the command
-	        if (!dsp_write_command(dsp, DSPP_VecHostCommandEncoderUp/2, TRUE))
-			Error("ERROR: cannot write command to DSP.\n");
-	  	return 1;
-	case ENCODER_DOWN:
-		//No data written, just the command
-	        if (!dsp_write_command(dsp, DSPP_VecHostCommandEncoderDown/2, TRUE))
-			Error("ERROR: cannot write command to DSP.\n");
-	  	return 1;
-	case MIDI_KEY_ON:
-			if (!dsp_write_data(dsp, &data, 1))
-				Error("ERROR: cannot write data to DSP.\n");
-			if (!dsp_write_command(dsp, DSPP_VecHostCommandMidiKeyOn/2, TRUE))
-				Error("ERROR: cannot write command to DSP.\n");
-		return 1;
-	case MIDI_KEY_OFF:
-			if (!dsp_write_data(dsp, &data, 1))
-				Error("ERROR: cannot write data to DSP.\n");
-			if (!dsp_write_command(dsp, DSPP_VecHostCommandMidiKeyOff/2, TRUE))
-				Error("ERROR: cannot write command to DSP.\n");
-		return 1;
+	if (!dsp_write_command(dsp, vecnum / 2, TRUE))
+		Error("ERROR: cannot write command to DSP.\n");
+}
 
-	default:
-	
-		TRACE("\nWrong dsp write source type!\n");
-		return 0;
-	}
+void DSP_write_cmd_data(rtems_unsigned32 vecnum, rtems_unsigned32 data)
+{
+	if (!dsp_write_data(dsp, &data, 1))
+		Error("ERROR: cannot write data to DSP.\n");
+	DSP_write_cmd(vecnum);
 }
 
 
@@ -154,13 +77,21 @@ void initialize()
     panel_out_lcd_print(panel, 0, 0, "digimoog");
 }
 
+rtems_unsigned32 lowpass_pot(rtems_unsigned32 pot) {
+	static const float dt = 1.0 / 48000;
+	static const float pi = 3.14159;
+
+	float freq = (float)pot / 0xffffff * 16000.0;
+	float c = (dt * 2 * pi * freq) / (dt * 2 * pi * freq + 1);
+	return c * 0x7fffff;
+}
+
 // Panel task: interaction with the Chameleon panel
 static rtems_task panel_task(rtems_task_argument argument)
 {
     static rtems_signed32 volume_table[128];
     static rtems_signed32 linear_table[128];
     rtems_unsigned32  	key_bits;
-    rtems_unsigned32	dummy=0xFFFFFFFF;
     rtems_unsigned8 	potentiometer;
     rtems_unsigned8 	encoder;
     rtems_signed8	increment;
@@ -202,19 +133,19 @@ static rtems_task panel_task(rtems_task_argument argument)
 		switch (potentiometer)
 		{
 	             	case PANEL01_POT_VOLUME:	
-	                	DSP_write(PANEL01_POT_VOLUME,volume_table[value]);
+	                	DSP_write_cmd_data(DSPP_VecHostCommandUpdateVolume, volume_table[value]);
 			       	panel_out_lcd_print(panel, 0, 0, "Volume:         ");
 			       	break;
 	                case PANEL01_POT_CTRL1:		
-	                    	DSP_write(PANEL01_POT_CTRL1,volume_table[value]);
+	                    	DSP_write_cmd_data(DSPP_VecHostCommandUpdateCTRL1, lowpass_pot(volume_table[value])); // TODO: vol table out
 			    	panel_out_lcd_print(panel, 0, 0, "Ctrl1:          ");
 			       	break;
 	                case PANEL01_POT_CTRL2:		
-                	    	DSP_write(PANEL01_POT_CTRL2,linear_table[value]);
+                	    	DSP_write_cmd_data(DSPP_VecHostCommandUpdateCTRL2, linear_table[value]);
                 	    	panel_out_lcd_print(panel, 0, 0, "Ctrl2:          ");
 			       	break;
 		      	case PANEL01_POT_CTRL3:		
-	                    	DSP_write(PANEL01_POT_CTRL3,linear_table[value]);
+	                    	DSP_write_cmd_data(DSPP_VecHostCommandUpdateCTRL3, linear_table[value]);
 	                	panel_out_lcd_print(panel, 0, 0, "Ctrl3:          ");
 			       	break;
 			
@@ -227,7 +158,7 @@ static rtems_task panel_task(rtems_task_argument argument)
 	{
 	
 		key_bits>>=8;	//NOTE! shift 8 bits to fit in 24bits in the dsp
-		DSP_write(KEYPAD_EVENT,key_bits);
+		DSP_write_cmd_data(DSPP_VecHostCommandKeyEvent, key_bits);
 		if (key_bits & (1 << 8)) {
 			seq_init(); // empty the seq with edit (panic) button
 		}
@@ -238,9 +169,9 @@ static rtems_task panel_task(rtems_task_argument argument)
 	{
 		sprintf(text, "Encoder: %+3d ", increment);
 		if(increment>0)
-			DSP_write(ENCODER_UP,dummy);
+			DSP_write_cmd(DSPP_VecHostCommandEncoderUp);
 		else
-			DSP_write(ENCODER_DOWN,dummy);	
+			DSP_write_cmd(DSPP_VecHostCommandEncoderDown);
 		panel_out_lcd_print(panel, 0, 0, text);
 		panel_out_lcd_print(panel, 1, 0, "                ");
 		
@@ -306,10 +237,10 @@ static rtems_task midi_task(rtems_task_argument ignored)
 		if (ev)
 		{
 			if (EvType(ev) == typeKeyOff || (EvType(ev) == typeKeyOn && Vel(ev) == 0)) {
-				DSP_write(MIDI_KEY_OFF, Pitch(ev));
+				DSP_write_cmd_data(DSPP_VecHostCommandMidiKeyOff, Pitch(ev));
 				seqevs += seq_add_event(seqtick, 0, SEQ_EVTYPE_KEYOFF, Pitch(ev)); // TODO: shift key to toggle this
 			} else if (EvType(ev) == typeKeyOn) {
-				DSP_write(MIDI_KEY_ON, Pitch(ev));
+				DSP_write_cmd_data(DSPP_VecHostCommandMidiKeyOn, Pitch(ev));
 				seqevs += seq_add_event(seqtick, 0, SEQ_EVTYPE_KEYON, Pitch(ev));
 			}
 		}
@@ -361,10 +292,10 @@ static rtems_task seq_task(rtems_task_argument ignored) {
 		while (ev) {
 			switch (ev->type) {
 			case SEQ_EVTYPE_KEYON:
-				DSP_write(MIDI_KEY_ON, ev->param);
+				DSP_write_cmd_data(DSPP_VecHostCommandMidiKeyOn, ev->param);
 				break;
 			case SEQ_EVTYPE_KEYOFF:
-				DSP_write(MIDI_KEY_OFF, ev->param);
+				DSP_write_cmd_data(DSPP_VecHostCommandMidiKeyOff, ev->param);
 				break;
 			}
 			ev = ev->next;
