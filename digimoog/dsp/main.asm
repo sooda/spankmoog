@@ -66,7 +66,7 @@ DT	equ	1.0/RATE
 ; if it's not enough for some oscillator+filter combination.
 ChannelCapacity  equ 32
 OscStateCapacity equ 16 ; FIXME: just a constant sized block, hope that no one is bigger
-NumChannels      equ 5
+NumChannels      equ 10
 
 ; Channel data format:
 ; [0]                      note number (if highest bit is set, the channel is not alive)
@@ -425,20 +425,21 @@ UpdateCTRL1:
 	BRCLR	#HSR_HRDF,X:<<HSR,*
 	MOVEP	X:<<HRX,r7
 	MOVE	r7,Y:CTRL1Value
-	move	r7,y:ankka
+	move	r7,y:ankka ; filt cutoff
 	MOVEP	r7,X:<<HTX
 	RTI
 UpdateCTRL2:
 	BRCLR	#HSR_HRDF,X:<<HSR,*
 	MOVEP	X:<<HRX,r7
 	MOVE	r7,Y:CTRL2Value
+	move	r7,Y:vankka ; adsr A
 	MOVEP	r7,X:<<HTX
 	RTI
 UpdateCTRL3:
 	BRCLR	#HSR_HRDF,X:<<HSR,*
 	MOVEP	X:<<HRX,r7
 	MOVE	r7,Y:CTRL3Value
-	move	Y:OutputL,r7
+	move	r7,Y:(vankka+3) ; adsr R
 	MOVEP	r7,X:<<HTX
 	RTI
 KeyEvent:

@@ -86,6 +86,14 @@ static rtems_unsigned32 lowpass_pot(rtems_unsigned32 pot) {
 	return c * 0x7fffff;
 }
 
+static rtems_unsigned32 adsr_time(rtems_unsigned32 pot) {
+	static const float rate = 48000;
+
+	float time_secs = (float)pot / 0xffffff * 0.5;
+	float c = 1 - exp(-1.0 / (time_secs * rate));
+	return c * 0x7fffff;
+}
+
 static void synth_note_off(int notenum) {
 	DSP_write_cmd_data(DSPP_VecHostCommandMidiKeyOff, notenum);
 	if (seqenabled)
@@ -150,11 +158,11 @@ static rtems_task panel_task(rtems_task_argument argument)
 				panel_out_lcd_print(panel, 0, 0, "Ctrl1:          ");
 				break;
 			case PANEL01_POT_CTRL2:
-				DSP_write_cmd_data(DSPP_VecHostCommandUpdateCTRL2, linear_table[value]);
+				DSP_write_cmd_data(DSPP_VecHostCommandUpdateCTRL2, adsr_time(linear_table[value]));
 				panel_out_lcd_print(panel, 0, 0, "Ctrl2:          ");
 				break;
 			case PANEL01_POT_CTRL3:
-				DSP_write_cmd_data(DSPP_VecHostCommandUpdateCTRL3, linear_table[value]);
+				DSP_write_cmd_data(DSPP_VecHostCommandUpdateCTRL3, adsr_time(linear_table[value]));
 				panel_out_lcd_print(panel, 0, 0, "Ctrl3:          ");
 				break;
 			default:
@@ -225,6 +233,7 @@ static rtems_task midi_task(rtems_task_argument ignored)
 	rtems_status_code	status;
 	rtems_id		task_id;
 	short			ref_midi;
+	char			debugmsg[32];
 
 	ref_midi = MidiOpen("Synth");
 	if (ref_midi < 0)
@@ -251,22 +260,14 @@ static rtems_task midi_task(rtems_task_argument ignored)
 		if (status != RTEMS_SUCCESSFUL)
 			break;
 
-		ev = NULL;
-		while (MidiCountEvs(ref_midi))
-		{
-			if (ev)
-				MidiFreeEv(ev);
-
-			ev = MidiGetEv(ref_midi);
-		}
-
-		if (ev)
-		{
+		while ((ev = MidiGetEv(ref_midi)) != NULL) {
 			if (EvType(ev) == typeKeyOff || (EvType(ev) == typeKeyOn && Vel(ev) == 0)) {
 				synth_note_off(Pitch(ev));
 			} else if (EvType(ev) == typeKeyOn) {
 				synth_note_on(Pitch(ev));
 			}
+			sprintf(debugmsg, "MIDI:chan=%d key=%d vel=%d\n", Chan(ev), Pitch(ev), Vel(ev));
+			TRACE(debugmsg);
 		}
 	}
 
@@ -328,7 +329,7 @@ static rtems_task seq_task(rtems_task_argument ignored) {
 		sprintf(text, "%x %x %x_", seqtick & 15, n, seqevs);
 		panel_out_lcd_print(panel, 0, 0, text);
 		strcat(text,"\n");
-		TRACE(text);
+		//TRACE(text);
 
 		seqtick++;
 		rtems_task_wake_after(period/2);
