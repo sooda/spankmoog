@@ -26,7 +26,7 @@ Instrument_Bass:
 	dc BassFilt-ChEval_FiltEvalBranch
 	dc 1 ; TODO: midi number
 	if !simulator
-	AdsrParamBlock 0.5,0.5,0.5,0.5
+	AdsrParamBlock 0.1,0.2,0.5,0.1
 	else
 	AdsrParamBlock 0.005,0.005,0.5,0.005
 	endif

@@ -17,6 +17,8 @@
 
 #include "dsp/dsp_code.h"
 
+#include "seq.h"
+
 #define	KEYPAD_EVENT	4
 #define ENCODER_UP	5
 #define ENCODER_DOWN	6
@@ -34,6 +36,7 @@ rtems_unsigned32 rtems_workspace_start[WORKSPACE_SIZE];
 // Handles of the panel and the DSP
 int panel, dsp;
 
+volatile int seqtick,seqevs;
 
 // This function is called if an unexpected error occurs
 void Error(char *error)
@@ -225,6 +228,9 @@ static rtems_task panel_task(rtems_task_argument argument)
 	
 		key_bits>>=8;	//NOTE! shift 8 bits to fit in 24bits in the dsp
 		DSP_write(KEYPAD_EVENT,key_bits);
+		if (key_bits & (1 << 8)) {
+			seq_init(); // empty the seq with edit (panic) button
+		}
 		panel_out_lcd_print(panel, 0, 0, "Keypad:         ");
 			
 	}
@@ -325,10 +331,13 @@ static rtems_task midi_task(rtems_task_argument ignored)
 
 		if (ev)
 		{
-			if (EvType(ev) == typeKeyOff || (EvType(ev) == typeKeyOn && Vel(ev) == 0))
+			if (EvType(ev) == typeKeyOff || (EvType(ev) == typeKeyOn && Vel(ev) == 0)) {
 				DSP_write(MIDI_KEY_OFF, Pitch(ev));
-			else if (EvType(ev) == typeKeyOn)
+				seqevs += seq_add_event(seqtick, 0, SEQ_EVTYPE_KEYOFF, Pitch(ev)); // TODO: shift key to toggle this
+			} else if (EvType(ev) == typeKeyOn) {
 				DSP_write(MIDI_KEY_ON, Pitch(ev));
+				seqevs += seq_add_event(seqtick, 0, SEQ_EVTYPE_KEYON, Pitch(ev));
+			}
 		}
 	}
 
@@ -411,6 +420,71 @@ rtems_boolean create_read_task(void)
   return TRUE;
 }
 
+static rtems_task seq_task(rtems_task_argument ignored) {
+	int bpm = 4;
+	rtems_interval secticks, period;
+	struct seqevent* ev;
+	char text[20];
+	int n;
+
+	rtems_clock_get(RTEMS_CLOCK_GET_TICKS_PER_SECOND, &secticks);
+	period = secticks / bpm;
+
+	seq_init();
+
+	while (TRUE) {
+		panel_out_led(panel, PANEL01_LED_EDIT);
+		ev = seq_events_at(seqtick);
+		n = 0;
+		while (ev) {
+			switch (ev->type) {
+			case SEQ_EVTYPE_KEYON:
+				DSP_write(MIDI_KEY_ON, ev->param);
+				break;
+			case SEQ_EVTYPE_KEYOFF:
+				DSP_write(MIDI_KEY_OFF, ev->param);
+				break;
+			}
+			ev = ev->next;
+			n++;
+		}
+		sprintf(text, "%x %x %x_", seqtick & 15, n, seqevs);
+		panel_out_lcd_print(panel, 0, 0, text);
+		strcat(text,"\n");
+		TRACE(text);
+
+		seqtick++;
+		rtems_task_wake_after(period/2);
+		panel_out_led(panel, 0);
+		rtems_task_wake_after(period/2);
+	}
+
+	rtems_task_delete(RTEMS_SELF);
+}
+rtems_boolean create_seq_task(void) {
+	rtems_id task_id;
+	rtems_status_code status;
+
+	status = rtems_task_create(
+			rtems_build_name('S', 'E', 'Q', 'R'),
+			50,
+			RTEMS_MINIMUM_STACK_SIZE,
+			RTEMS_DEFAULT_MODES,
+			RTEMS_DEFAULT_ATTRIBUTES,
+			&task_id
+			);
+	if (status != RTEMS_SUCCESSFUL) {
+		TRACE("ERROR: cannot create seq_task.\n");
+		return FALSE;
+	}
+	status = rtems_task_start(task_id, seq_task, 0);
+	if (status != RTEMS_SUCCESSFUL) {
+		TRACE("ERROR: cannot start seq_task.\n");
+		return FALSE;
+	}
+	return TRUE;
+}
+
 // The main function that is called when the application is started
 rtems_task rtems_main(rtems_task_argument ignored)
 {
@@ -418,5 +492,6 @@ rtems_task rtems_main(rtems_task_argument ignored)
     create_panel_task();
     create_midi_task();
     create_read_task();
+	create_seq_task();
     rtems_task_delete(RTEMS_SELF);
 }
