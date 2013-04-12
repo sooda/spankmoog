@@ -253,32 +253,6 @@ static rtems_task panel_task(rtems_task_argument argument)
     rtems_task_delete(RTEMS_SELF);
 }
 
-// Create and start the panel task that runs the function panel_task
-rtems_boolean create_panel_task(void)
-{
-    rtems_id task_id;
-    rtems_status_code status;
-
-    status = rtems_task_create(rtems_build_name('T', 'H', 'R', 'U'),
-                               50,
-                               RTEMS_MINIMUM_STACK_SIZE,
-                               RTEMS_DEFAULT_MODES,
-                               RTEMS_DEFAULT_ATTRIBUTES,
-                               &task_id);
-    if (status != RTEMS_SUCCESSFUL) {
-        TRACE("ERROR: cannot create panel_task.\n");
-        return FALSE;
-    }
-
-    status = rtems_task_start(task_id, panel_task, 0);
-    if (status != RTEMS_SUCCESSFUL) {
-        TRACE("ERROR: cannot start panel_task.\n");
-        return FALSE;
-    }
-
-    return TRUE;
-}
-
 #define EVENT_MIDI RTEMS_EVENT_1
 
 static void receive_alarm(short ref)
@@ -348,32 +322,6 @@ static rtems_task midi_task(rtems_task_argument ignored)
 	rtems_task_delete(RTEMS_SELF);
 }
 
-// Create and start the midi task that runs the function midi_task
-rtems_boolean create_midi_task(void)
-{
-  rtems_id task_id;
-  rtems_status_code status;
-
-  status = rtems_task_create(
-    rtems_build_name('T', 'M', 'I', 'D'),
-    50,
-    RTEMS_MINIMUM_STACK_SIZE,
-    RTEMS_DEFAULT_MODES,
-    RTEMS_DEFAULT_ATTRIBUTES,
-    &task_id
-  );
-  if (status != RTEMS_SUCCESSFUL) {
-    TRACE("ERROR: cannot create midi_task.\n");
-    return FALSE;
-  }
-  status = rtems_task_start(task_id, midi_task, 0);
-  if (status != RTEMS_SUCCESSFUL) {
-    TRACE("ERROR: cannot start midi_task.\n");
-    return FALSE;
-  }
-  return TRUE;
-}
-
 // Read task: read data from the DSP
 static rtems_task read_task(rtems_task_argument ignored)
 {
@@ -392,32 +340,6 @@ static rtems_task read_task(rtems_task_argument ignored)
   }
 
   rtems_task_delete(RTEMS_SELF);
-}
-
-// Create and start the read task that runs the function read_task
-rtems_boolean create_read_task(void)
-{
-  rtems_id task_id;
-  rtems_status_code status;
-
-  status = rtems_task_create(
-    rtems_build_name('T', 'R', 'E', 'A'),
-    50,
-    RTEMS_MINIMUM_STACK_SIZE,
-    RTEMS_DEFAULT_MODES,
-    RTEMS_DEFAULT_ATTRIBUTES,
-    &task_id
-  );
-  if (status != RTEMS_SUCCESSFUL) {
-    TRACE("ERROR: cannot create read_task.\n");
-    return FALSE;
-  }
-  status = rtems_task_start(task_id, read_task, 0);
-  if (status != RTEMS_SUCCESSFUL) {
-    TRACE("ERROR: cannot start read_task.\n");
-    return FALSE;
-  }
-  return TRUE;
 }
 
 static rtems_task seq_task(rtems_task_argument ignored) {
@@ -461,12 +383,12 @@ static rtems_task seq_task(rtems_task_argument ignored) {
 
 	rtems_task_delete(RTEMS_SELF);
 }
-rtems_boolean create_seq_task(void) {
+rtems_boolean create_task(rtems_task (*task)(rtems_task_argument), const char *name) {
 	rtems_id task_id;
 	rtems_status_code status;
 
 	status = rtems_task_create(
-			rtems_build_name('S', 'E', 'Q', 'R'),
+			rtems_build_name(name[0], name[1], name[2], name[3]),
 			50,
 			RTEMS_MINIMUM_STACK_SIZE,
 			RTEMS_DEFAULT_MODES,
@@ -474,12 +396,12 @@ rtems_boolean create_seq_task(void) {
 			&task_id
 			);
 	if (status != RTEMS_SUCCESSFUL) {
-		TRACE("ERROR: cannot create seq_task.\n");
+		TRACE("ERROR: cannot create "); TRACE(name); TRACE("seq_task.\n");
 		return FALSE;
 	}
-	status = rtems_task_start(task_id, seq_task, 0);
+	status = rtems_task_start(task_id, task, 0);
 	if (status != RTEMS_SUCCESSFUL) {
-		TRACE("ERROR: cannot start seq_task.\n");
+		TRACE("ERROR: cannot start "); TRACE(name); TRACE("seq_task.\n");
 		return FALSE;
 	}
 	return TRUE;
@@ -489,9 +411,9 @@ rtems_boolean create_seq_task(void) {
 rtems_task rtems_main(rtems_task_argument ignored)
 {
     initialize();
-    create_panel_task();
-    create_midi_task();
-    create_read_task();
-	create_seq_task();
+	create_task(panel_task, "PANE");
+	create_task(midi_task, "MIDI");
+	create_task(read_task, "READ");
+	create_task(seq_task, "SEQR");
     rtems_task_delete(RTEMS_SELF);
 }
