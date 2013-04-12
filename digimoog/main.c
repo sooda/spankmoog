@@ -31,7 +31,7 @@ rtems_unsigned32 rtems_workspace_start[WORKSPACE_SIZE];
 // Handles of the panel and the DSP
 int panel, dsp;
 
-volatile int seqtick,seqevs;
+volatile int seqtick, seqevs, seqenabled;
 
 // This function is called if an unexpected error occurs
 void Error(char *error)
@@ -48,13 +48,13 @@ void show_data(rtems_signed32 data)
   panel_out_lcd_print(panel, 1, 0, str);
 }
 
-void DSP_write_cmd(rtems_unsigned32 vecnum)
+static void DSP_write_cmd(rtems_unsigned32 vecnum)
 {
 	if (!dsp_write_command(dsp, vecnum / 2, TRUE))
 		Error("ERROR: cannot write command to DSP.\n");
 }
 
-void DSP_write_cmd_data(rtems_unsigned32 vecnum, rtems_unsigned32 data)
+static void DSP_write_cmd_data(rtems_unsigned32 vecnum, rtems_unsigned32 data)
 {
 	if (!dsp_write_data(dsp, &data, 1))
 		Error("ERROR: cannot write data to DSP.\n");
@@ -77,7 +77,7 @@ void initialize()
     panel_out_lcd_print(panel, 0, 0, "digimoog");
 }
 
-rtems_unsigned32 lowpass_pot(rtems_unsigned32 pot) {
+static rtems_unsigned32 lowpass_pot(rtems_unsigned32 pot) {
 	static const float dt = 1.0 / 48000;
 	static const float pi = 3.14159;
 
@@ -86,102 +86,128 @@ rtems_unsigned32 lowpass_pot(rtems_unsigned32 pot) {
 	return c * 0x7fffff;
 }
 
+static void synth_note_off(int notenum) {
+	DSP_write_cmd_data(DSPP_VecHostCommandMidiKeyOff, notenum);
+	if (seqenabled)
+		seqevs += seq_add_event(seqtick, 0, SEQ_EVTYPE_KEYOFF, notenum);
+}
+static void synth_note_on(int notenum) {
+	DSP_write_cmd_data(DSPP_VecHostCommandMidiKeyOn, notenum);
+	if (seqenabled)
+		seqevs += seq_add_event(seqtick, 0, SEQ_EVTYPE_KEYON, notenum);
+}
+
 // Panel task: interaction with the Chameleon panel
 static rtems_task panel_task(rtems_task_argument argument)
 {
-    static rtems_signed32 volume_table[128];
-    static rtems_signed32 linear_table[128];
-    rtems_unsigned32  	key_bits;
-    rtems_unsigned8 	potentiometer;
-    rtems_unsigned8 	encoder;
-    rtems_signed8	increment;
-    char		text[17];
-    
-    rtems_unsigned8 value;
-    int i;
-    float dB;
+	static rtems_signed32	volume_table[128];
+	static rtems_signed32	linear_table[128];
+	rtems_unsigned32	key_bits, key_bits_prev, encoval;
+	rtems_unsigned8 	potentiometer;
+	rtems_unsigned8 	encoder;
+	rtems_signed8		increment;
+	char			text[17];
 
+	rtems_unsigned8 value;
+	int i;
+	float dB;
 
-    TRACE("Project work template for sample-based audio input and output\n");
+	TRACE("digimoog");
 
-    // Precalculate gain values for different volume settings
-    for (i=0; i<128 ;i++) {
-    	if (i < 27)
-            dB = -90.0 + (float) 40.0*i/27.0;
-        else
-            dB = -50.0 + (float) 50.0*(i-27)/100.0;
-        volume_table[i] = float_to_fix_round(pow(10.0, dB/20.0));
-    }
-    volume_table[0] = 0;
-    
-    // Precalculate a linear table to scale the potentiometer values linearily between 0..~1
-    for (i=1; i<128 ;i++) 
-    {
-    	linear_table[i]=float_to_fix_round((float)i/127.0);	
-    }
-	
-    // Main loop
-    while (TRUE) 
-    {
-
-        // *** Write your panel interaction code here ***
-	//Poll for panel events
-        if (!panel_in_new_event(panel, TRUE))
-        	Error("ERROR: unexpected exit waiting new panel event.\n");
-        if (panel_in_potentiometer(panel, &potentiometer, &value)) 
-        {
-		switch (potentiometer)
-		{
-	             	case PANEL01_POT_VOLUME:	
-	                	DSP_write_cmd_data(DSPP_VecHostCommandUpdateVolume, volume_table[value]);
-			       	panel_out_lcd_print(panel, 0, 0, "Volume:         ");
-			       	break;
-	                case PANEL01_POT_CTRL1:		
-	                    	DSP_write_cmd_data(DSPP_VecHostCommandUpdateCTRL1, lowpass_pot(volume_table[value])); // TODO: vol table out
-			    	panel_out_lcd_print(panel, 0, 0, "Ctrl1:          ");
-			       	break;
-	                case PANEL01_POT_CTRL2:		
-                	    	DSP_write_cmd_data(DSPP_VecHostCommandUpdateCTRL2, linear_table[value]);
-                	    	panel_out_lcd_print(panel, 0, 0, "Ctrl2:          ");
-			       	break;
-		      	case PANEL01_POT_CTRL3:		
-	                    	DSP_write_cmd_data(DSPP_VecHostCommandUpdateCTRL3, linear_table[value]);
-	                	panel_out_lcd_print(panel, 0, 0, "Ctrl3:          ");
-			       	break;
-			
-	                default:
-	                	break;
-        	}
-                       
-        }
-        else if (panel_in_keypad(panel, &key_bits))
-	{
-	
-		key_bits>>=8;	//NOTE! shift 8 bits to fit in 24bits in the dsp
-		DSP_write_cmd_data(DSPP_VecHostCommandKeyEvent, key_bits);
-		if (key_bits & (1 << 8)) {
-			seq_init(); // empty the seq with edit (panic) button
-		}
-		panel_out_lcd_print(panel, 0, 0, "Keypad:         ");
-			
-	}
-	else if (panel_in_encoder(panel, &encoder, &increment))
-	{
-		sprintf(text, "Encoder: %+3d ", increment);
-		if(increment>0)
-			DSP_write_cmd(DSPP_VecHostCommandEncoderUp);
+	// Precalculate gain values for different volume settings
+	for (i = 0; i < 128; i++) {
+		if (i < 27)
+			dB = -90.0 + (float)40.0 * i/27.0;
 		else
-			DSP_write_cmd(DSPP_VecHostCommandEncoderDown);
-		panel_out_lcd_print(panel, 0, 0, text);
-		panel_out_lcd_print(panel, 1, 0, "                ");
-		
+			dB = -50.0 + (float)50.0 * (i-27)/100.0;
+		volume_table[i] = float_to_fix_round(pow(10.0, dB/20.0));
+	}
+	volume_table[0] = 0;
+
+	// Precalculate a linear table to scale the potentiometer values linearily between 0..~1
+	for (i = 1; i < 128; i++) {
+		linear_table[i]=float_to_fix_round((float)i/127.0);
 	}
 
-	
-    }
+	key_bits_prev = 0;
+	encoval = 0;
 
-    panel_exit(panel);
-    rtems_task_delete(RTEMS_SELF);
+	// Main loop
+	while (TRUE) {
+		//Poll for panel events
+		if (!panel_in_new_event(panel, TRUE))
+			Error("ERROR: unexpected exit waiting new panel event.\n");
+
+		if (panel_in_potentiometer(panel, &potentiometer, &value)) {
+			switch (potentiometer)
+			{
+			case PANEL01_POT_VOLUME:
+				DSP_write_cmd_data(DSPP_VecHostCommandUpdateVolume, volume_table[value]);
+				panel_out_lcd_print(panel, 0, 0, "Volume:         ");
+				break;
+			case PANEL01_POT_CTRL1:
+				DSP_write_cmd_data(DSPP_VecHostCommandUpdateCTRL1, lowpass_pot(volume_table[value]));
+				panel_out_lcd_print(panel, 0, 0, "Ctrl1:          ");
+				break;
+			case PANEL01_POT_CTRL2:
+				DSP_write_cmd_data(DSPP_VecHostCommandUpdateCTRL2, linear_table[value]);
+				panel_out_lcd_print(panel, 0, 0, "Ctrl2:          ");
+				break;
+			case PANEL01_POT_CTRL3:
+				DSP_write_cmd_data(DSPP_VecHostCommandUpdateCTRL3, linear_table[value]);
+				panel_out_lcd_print(panel, 0, 0, "Ctrl3:          ");
+				break;
+			default:
+				break;
+			}
+		} else if (panel_in_keypad(panel, &key_bits)) {
+			// key_diff should only contain one bit here
+			rtems_unsigned32 key_diff = key_bits ^ key_bits_prev, key = 0;
+			key_bits_prev = key_bits;
+			switch (key_diff) {
+				case 0x80000000: key = 0; break; // value down
+				case 0x40000000: key = 1; break; // param down
+				case 0x20000000: key = 2; break; // value up
+				case 0x10000000: key = 3; break; // param up
+				case 0x08000000: key = 4; break; // page down
+				case 0x04000000: key = 5; break; // group down
+				case 0x02000000: key = 6; break; // page up
+				case 0x01000000: key = 7; break; // group up
+				case 0x00080000: key = 8; break; // part down
+				case 0x00040000: key = 9; break; // shift
+				case 0x00020000: key = 10; break; // part up
+				case 0x00010000: key = 11; break; // edit
+			}
+			if (key == 11) {
+				seq_init();
+				seqevs = 0;
+				DSP_write_cmd(DSPP_VecHostCommandPanic);
+			} else if (key == 9) {
+				if (key_bits)
+					seqenabled ^= 1;
+			} else {
+				key += 12 * encoval;
+				if (key_bits)
+					synth_note_on(key);
+				else
+					synth_note_off(key);
+			}
+		} else if (panel_in_encoder(panel, &encoder, &increment)) {
+			encoval += increment;
+#if 0
+			sprintf(text, "Encoder: %+3d ", increment);
+			if(increment > 0)
+				DSP_write_cmd(DSPP_VecHostCommandEncoderUp);
+			else
+				DSP_write_cmd(DSPP_VecHostCommandEncoderDown);
+			panel_out_lcd_print(panel, 0, 0, text);
+			panel_out_lcd_print(panel, 1, 0, "                ");
+#endif
+		}
+	}
+
+	panel_exit(panel);
+	rtems_task_delete(RTEMS_SELF);
 }
 
 #define EVENT_MIDI RTEMS_EVENT_1
@@ -237,11 +263,9 @@ static rtems_task midi_task(rtems_task_argument ignored)
 		if (ev)
 		{
 			if (EvType(ev) == typeKeyOff || (EvType(ev) == typeKeyOn && Vel(ev) == 0)) {
-				DSP_write_cmd_data(DSPP_VecHostCommandMidiKeyOff, Pitch(ev));
-				seqevs += seq_add_event(seqtick, 0, SEQ_EVTYPE_KEYOFF, Pitch(ev)); // TODO: shift key to toggle this
+				synth_note_off(Pitch(ev));
 			} else if (EvType(ev) == typeKeyOn) {
-				DSP_write_cmd_data(DSPP_VecHostCommandMidiKeyOn, Pitch(ev));
-				seqevs += seq_add_event(seqtick, 0, SEQ_EVTYPE_KEYON, Pitch(ev));
+				synth_note_on(Pitch(ev));
 			}
 		}
 	}
@@ -286,7 +310,7 @@ static rtems_task seq_task(rtems_task_argument ignored) {
 	seq_init();
 
 	while (TRUE) {
-		panel_out_led(panel, PANEL01_LED_EDIT);
+		panel_out_led(panel, PANEL01_LED_EDIT | (seqenabled ? PANEL01_LED_SHIFT : 0));
 		ev = seq_events_at(seqtick);
 		n = 0;
 		while (ev) {
@@ -308,7 +332,7 @@ static rtems_task seq_task(rtems_task_argument ignored) {
 
 		seqtick++;
 		rtems_task_wake_after(period/2);
-		panel_out_led(panel, 0);
+		panel_out_led(panel, seqenabled ? PANEL01_LED_SHIFT : 0);
 		rtems_task_wake_after(period/2);
 	}
 

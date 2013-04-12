@@ -86,34 +86,6 @@ ChDataIdx_OscState      equ (2+AdsrStateSize+1)
 ChNoteDeadBit           equ 23
 ChNoteKeyoffBit         equ 22
 
-;Bit numbers in "KeypadState" for each button:
-;#8:  Edit
-;#9:  Part up
-;#10: Shift
-;#11; Part down
-;#16: Group up
-;#17: Page up
-;#18: Group down
-;#19: Page down
-;#20: Param up
-;#21: Value up
-;#22: Param down
-;#23: Value down
-
-KeyBit_Edit      equ 8
-KeyBit_PartUp    equ 9
-KeyBit_Shift     equ 10
-KeyBit_PartDown  equ 11
-KeyBit_GroupUp   equ 16
-KeyBit_PageUp    equ 17
-KeyBit_GroupDown equ 18
-KeyBit_PageDown  equ 19
-KeyBit_ParamUp   equ 20
-KeyBit_ValueUp   equ 21
-KeyBit_ParamDown equ 22
-KeyBit_ValueDown equ 23
-
-
 ;**********************************************************************
 ; Memory allocations
 ;**********************************************************************
@@ -123,7 +95,6 @@ KeyBit_ValueDown equ 23
 ChannelData: ds NumChannels*ChannelCapacity
 AccumBackup ds 3
 AccumBackup2 ds 3
-LolTimer ds 1
 
 	org	Y:$000000
 
@@ -135,11 +106,6 @@ CTRL2Value:		;Holds the current value of control pot 2 (lin scale $0-$7FFFFF)
 	ds	1	
 CTRL3Value:		;Holds the current value of control pot 3 (lin scale $0-$7FFFFF)
 	ds	1
-KeypadState:		;Holds the current state of buttons. Bit values represent the states (1=down, 0=up)
-	ds	1
-PrevKeypadState:
-	ds	1
-
 NoteThatWentDown: ; If a key just went down, this holds the note value. Otherwise, this has highest bit set.
 	ds	1
 NoteThatWentUp:   ; If a key just went up, this holds the note value. Otherwise, this has highest bit set.
@@ -162,6 +128,8 @@ OutputMiddle:
 OutputAdsr:
 	ds 1
 OutputOsc:
+	ds 1
+PanicState:
 	ds 1
 
 	include 'instruparams.asm'
@@ -186,9 +154,11 @@ VecHostCommandEncoderDown:
 VecHostCommandKeyEvent:
 	JSR	>KeyEvent
 VecHostCommandMidiKeyOn:
-	JSR >MidiKeyOn
+	JSR	>MidiKeyOn
 VecHostCommandMidiKeyOff:
-	JSR >MidiKeyOff
+	JSR	>MidiKeyOff
+VecHostCommandPanic:
+	JSR	>Panic
 
 ;**********************************************************************
 ; Program code
@@ -229,11 +199,6 @@ Start:
 	move x0,Y:NoteThatWentUp
 	move x0,Y:NoteThatWentDown
 
-	move #>0,x0
-	move x0,Y:PrevKeypadState
-	move x0,Y:KeypadState
-	move x0,X:LolTimer
-
 	; The cycle count is computed with a free-running timer in the background
 	; The counter increments by one every 2 cycles
 
@@ -241,8 +206,9 @@ Start:
 	move #>0,x0
 	move x0,X:<<TPLR
 	; load reg, start counting from here
-	move #>0,x0
 	move x0,X:<<TLR0
+
+	move x0,Y:PanicState
 
 MainLoop:
 	; reset the counter control reg first
@@ -266,110 +232,6 @@ MainLoop:
 	;asl #1,a,a
 	;move a,X:<<HTX
 
-	; temporary, ugly code for converting chameleon panel key presses to note values.
-	; the encoder modifies an offset added to every note (note that you need only turn the knob
-	; slightly to get to the higher notes)
-
-	move Y:KeypadState,x0
-
-	if simulator
-		; simulate a keypress
-		move X:LolTimer,a
-		add #>1,a
-		move a,X:LolTimer
-		cmp #>500,a
-		bge _keyoff
-	_keyon:
-		move #>(1<<KeyBit_Edit),x0
-	_keyoff:
-		; keypadstate is 0
-	endif
-	move Y:PrevKeypadState,a
-	cmp x0,a
-	beq NoKeysChanged
-		move a,b
-		eor x0,b
-
-		; can't bother prettifying this.. we'll remove this soon anyway, right?
-
-		brclr #KeyBit_Edit,b1,PanelKeys_NotEdit
-			move #>0,b
-			jmp PanelKeyIdentified
-		PanelKeys_NotEdit:
-
-		brclr #KeyBit_PartUp,b1,PanelKeys_NotPartUp
-			move #>1,b
-			jmp PanelKeyIdentified
-		PanelKeys_NotPartUp:
-
-		brclr #KeyBit_GroupUp,b1,PanelKeys_NotGroupUp
-			move #>2,b
-			jmp PanelKeyIdentified
-		PanelKeys_NotGroupUp:
-
-		brclr #KeyBit_PageUp,b1,PanelKeys_NotPageUp
-			move #>3,b
-			jmp PanelKeyIdentified
-		PanelKeys_NotPageUp:
-
-		brclr #KeyBit_ParamUp,b1,PanelKeys_NotParamUp
-			move #>4,b
-			jmp PanelKeyIdentified
-		PanelKeys_NotParamUp:
-
-		brclr #KeyBit_ValueUp,b1,PanelKeys_NotValueUp
-			move #>5,b
-			jmp PanelKeyIdentified
-		PanelKeys_NotValueUp:
-
-		brclr #KeyBit_Shift,b1,PanelKeys_NotShift
-			move #>6,b
-			jmp PanelKeyIdentified
-		PanelKeys_NotShift:
-
-		brclr #KeyBit_PartDown,b1,PanelKeys_NotPartDown
-			move #>7,b
-			jmp PanelKeyIdentified
-		PanelKeys_NotPartDown:
-
-		brclr #KeyBit_GroupDown,b1,PanelKeys_NotGroupDown
-			move #>8,b
-			jmp PanelKeyIdentified
-		PanelKeys_NotGroupDown:
-
-		brclr #KeyBit_PageDown,b1,PanelKeys_NotPageDown
-			move #>9,b
-			jmp PanelKeyIdentified
-		PanelKeys_NotPageDown:
-
-		brclr #KeyBit_ParamDown,b1,PanelKeys_NotParamDown
-			move #>10,b
-			jmp PanelKeyIdentified
-		PanelKeys_NotParamDown:
-
-		brclr #KeyBit_ValueDown,b1,PanelKeys_NotValueDown
-			move #>11,b
-			jmp PanelKeyIdentified
-		PanelKeys_NotValueDown:
-
-		PanelKeyIdentified:
-
-		move Y:PanelKeys_NoteOffset,y0
-		if simulator
-			move #>100,y0
-		endif
-		add y0,b
-
-		cmpu x0,a
-		bgt KeyUp
-			move b,Y:NoteThatWentDown
-			jmp DoneKeyDown
-		KeyUp:
-			move b,Y:NoteThatWentUp
-		DoneKeyDown:
-		move x0,Y:PrevKeypadState
-	NoKeysChanged:
-
 	; check if a key just went up
 
 	brset #23,Y:NoteThatWentUp,NoNoteWentUp
@@ -392,11 +254,19 @@ MainLoop:
 				move b1,X:(r1+ChDataIdx_Note)
 				enddo
 			NotTheNoteToKill:
-
 			add #>ChannelCapacity,a
 		ChannelKillLoopEnd:
 	NoNoteWentUp:
 
+	brclr #0,Y:PanicState,PanicLoopEnd
+		move #>ChannelData,a
+		do #NumChannels,PanicLoopEnd
+			move a1,r1
+			bset #ChNoteDeadBit,b1
+			move b1,X:(r1+ChDataIdx_Note)
+			add #>ChannelCapacity,a
+	PanicLoopEnd:
+	bclr #0,Y:PanicState ; not needed anymore (don't bother checking if it was on, just clear)
 	; check if a key just went down
 
 	brset #23,Y:NoteThatWentDown,NoNoteWentDown
@@ -574,7 +444,6 @@ UpdateCTRL3:
 KeyEvent:
 	BRCLR	#HSR_HRDF,X:<<HSR,*
 	MOVEP	X:<<HRX,r7
-	MOVE	r7,Y:KeypadState
 	MOVEP	r7,X:<<HTX
 	RTI
 EncoderUp:
@@ -604,5 +473,9 @@ MidiKeyOff:
 	MOVEP	X:<<HRX,r7
 	MOVE	r7,Y:NoteThatWentUp
 	RTI
+
+Panic:
+	bset #0,Y:PanicState
+	rti
 
 	end	Start
