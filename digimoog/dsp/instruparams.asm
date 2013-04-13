@@ -10,27 +10,39 @@
 InstruParamIdx_InitFunc	equ	0
 InstruParamIdx_OscFunc	equ	1
 InstruParamIdx_FiltFunc	equ	2
-InstruParamIdx_MidiNum	equ	3
-InstruParamIdx_Adsr	equ	4
-InstruParamIdx_End	equ	4+AdsrStateSize
+InstruParamIdx_Adsr	equ	3
+InstruParamIdx_End	equ	3+AdsrStateSize
 ; no size constant needed
 
 InstruBassIdx_Lp	equ	InstruParamIdx_End
 
 Instrument_Bass:
-	; TODO: subtract caller address from these
-	; because these are called only from a single point
-	; (bsr is pc-relative)
 	dc BassInit-ChAlloc_InitInstruState
 	dc BassOsc-ChEval_OscEvalBranch
 	dc BassFilt-ChEval_FiltEvalBranch
-	dc 1 ; TODO: midi number
 	if !simulator
 vankka	AdsrParamBlock 0.1,0.1,0.5,0.1
 	else
 	AdsrParamBlock 0.005,0.005,0.5,0.005
 	endif
 ankka	FiltTrivialLpParams 5000 ; TODO: a better way to tune these via the panel
+
+; just another identical one for testing; it sounds different anyway when the panel pots are tuned a bit
+Instrument_Bass2:
+	dc BassInit-ChAlloc_InitInstruState
+	dc BassOsc-ChEval_OscEvalBranch
+	dc BassFilt-ChEval_FiltEvalBranch
+	if !simulator
+	AdsrParamBlock 0.1,0.1,0.5,0.1
+	else
+	AdsrParamBlock 0.005,0.005,0.5,0.005
+	endif
+	FiltTrivialLpParams 5000
+
+AllInstruments:
+	dc Instrument_Bass
+	dc Instrument_Bass2
+NumInstruments dc 2
 
 ; CALLING CONVENTION
 ; Init:

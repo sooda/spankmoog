@@ -6,17 +6,13 @@
 ; By Konsta Hölttä and Nuutti Hölttä                                  *
 ;                                                                     *
 ; Current state:                                                      *
-; - initial structure for channel freeing and allocation and note     *
-;   playing                                                           *
-; - chameleon's panel buttons play some notes, encoder changes octave *
-;   (somewhat buggy and such, but will be removed anyway)             *
+; - a structure for channel freeing and allocation and note playing   *
 ; - midi key on and key off input (velocity currently ignored)        *
 ; - Some oscillators (saw, dpw, pulse, dpw pulse)                     *
 ; - framework for implementing several filters/effects                *
 ;                                                                     *
 ; Non-exhaustive list of TODOs in no particular order:                *
-; - get rid of the current panel interface                            *
-; - way to specify the instrument at runtime                          *
+; - A better way to handle the midi events in a queue or something    *
 ; - ADSR and LFO for filters                                          *
 ; - more interesting instruments                                      *
 ; - fix, optimize and prettify all the things                         *
@@ -81,7 +77,8 @@ ChDataIdx_Note          equ 0
 ChDataIdx_FiltStateAddr equ 1
 ChDataIdx_AdsrState     equ 2
 ChDataIdx_InstruPtr     equ (2+AdsrStateSize)
-ChDataIdx_OscState      equ (2+AdsrStateSize+1)
+ChDataIdx_InstruIdx     equ (2+AdsrStateSize+1)
+ChDataIdx_OscState      equ (2+AdsrStateSize+2)
 
 ChNoteDeadBit           equ 23
 ChNoteKeyoffBit         equ 22
@@ -108,7 +105,11 @@ CTRL3Value:		;Holds the current value of control pot 3 (lin scale $0-$7FFFFF)
 	ds	1
 NoteThatWentDown: ; If a key just went down, this holds the note value. Otherwise, this has highest bit set.
 	ds	1
+InstrumentThatWentDown: ; If a key just went down, this holds the new instrument index for that
+	ds	1
 NoteThatWentUp:   ; If a key just went up, this holds the note value. Otherwise, this has highest bit set.
+	ds	1
+InstrumentThatWentUp: ; If a key just went up, this holds the instrument index for that
 	ds	1
 
 ; TODO: the above NoteThatWentDown end NoteThatWentUp currently don't support it when several keys
@@ -236,6 +237,7 @@ MainLoop:
 
 	brset #23,Y:NoteThatWentUp,NoNoteWentUp
 		move Y:NoteThatWentUp,x0
+		move Y:InstrumentThatWentUp,x1
 		move #>$ffffff,y0
 		move y0,Y:NoteThatWentUp
 
@@ -247,6 +249,9 @@ MainLoop:
 		do #NumChannels,ChannelKillLoopEnd
 			move a1,r1
 
+			move X:(r1+ChDataIdx_InstruIdx),b
+			cmp x1,b
+			bne NotTheNoteToKill
 			move X:(r1+ChDataIdx_Note),b
 			cmp x0,b
 			bne NotTheNoteToKill
@@ -288,7 +293,9 @@ MainLoop:
 				lua (r1+ChDataIdx_AdsrState),r0
 				bsr AdsrInitState
 
-				move #>Instrument_Bass,r4 ; TODO: select instrument somehow
+				move Y:InstrumentThatWentDown,r4
+				move r4,X:(r1+ChDataIdx_InstruIdx)
+				move Y:(r4+AllInstruments),r4
 				move r4,X:(r1+ChDataIdx_InstruPtr)
 
 				lua (r1+ChDataIdx_OscState+OscStateCapacity),r0
@@ -468,11 +475,17 @@ MidiKeyOn:
 	BRCLR	#HSR_HRDF,X:<<HSR,*
 	MOVEP	X:<<HRX,r7
 	MOVE	r7,Y:NoteThatWentDown
+	BRCLR	#HSR_HRDF,X:<<HSR,*
+	MOVEP	X:<<HRX,r7
+	MOVE	r7,Y:InstrumentThatWentDown
 	RTI
 MidiKeyOff:
 	BRCLR	#HSR_HRDF,X:<<HSR,*
 	MOVEP	X:<<HRX,r7
 	MOVE	r7,Y:NoteThatWentUp
+	BRCLR	#HSR_HRDF,X:<<HSR,*
+	MOVEP	X:<<HRX,r7
+	MOVE	r7,Y:InstrumentThatWentUp
 	RTI
 
 Panic:

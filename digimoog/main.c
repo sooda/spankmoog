@@ -1,12 +1,24 @@
 /**********************************************************************
  * C H A M E L E O N   ColdFire C file                                *
  **********************************************************************
+ * Digimoog project for Aalto ELEC S-89.3510 SPÄNK                    *
+ * By Konsta and Nuutti Hölttä 2013                                   *
+ * Based on:                                                          *
  * Project work template for sample-based audio input and output      *
  * Based on the example dspthru by Soundart                           *
  * Hannu Pulakka, March 2006, February 2007                           *
  * Modified by Antti Pakarinen, February, 2012		 	      * 	
  *	(Panel input and communication routines) 		      *
  **********************************************************************/
+
+/* Usage:
+ *
+ * Edit key: sequencer event saving on/off
+ * Shift key: clear the sequencer and kill all notes immediately
+ * Part up/down: select midi channel to edit
+ * Group up/down: map selected midi channel to a synth channel
+ *
+ */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -37,6 +49,8 @@ enum Key {
 	KEY_EDIT,
 };
 
+// number of keys that play a note instead of controlling something
+#define NOTE_KEYS 6
 
 // Required definitions for a Chameleon application
 /**********************************************************************/
@@ -46,37 +60,54 @@ rtems_unsigned32 rtems_workspace_start[WORKSPACE_SIZE];
 /**********************************************************************/
 
 // Handles of the panel and the DSP
-int panel, dsp;
+static int panel, dsp;
 
-volatile int seqtick, seqevs, seqenabled;
-rtems_unsigned32 encoval;
+static volatile int seqtick, seqevs, seqenabled;
+static rtems_unsigned32 encoval;
+
+// midi channel to synth instrument mapping
+// if the value is 0, all events to this channel are ignored
+// otherwise, synth_idx = midichan_to_synth[midichan] - 1
+// note that the program change events are not used for anything
+// the keypad buttons work at channel 0
+#define SYNTH_CHANS 2
+#define MIDI_CHAN_MAP_SIZE 8
+static int midichan_to_synth[MIDI_CHAN_MAP_SIZE];
+static int midichanedit;
 
 // This function is called if an unexpected error occurs
-void Error(char *error)
-{
-    TRACE(error);
-    exit(1);
+static void Error(char *error) {
+	TRACE(error);
+	exit(1);
 }
 
 // Show a data word on the LCD display
-void show_data(rtems_signed32 data)
-{
-  char str[16];
-  sprintf(str, "0x%06X", data);
-  panel_out_lcd_print(panel, 1, 0, str);
+static void show_data(rtems_signed32 data) {
+	char str[9];
+	sprintf(str, "0x%06X", data);
+	panel_out_lcd_print(panel, 1, 0, str);
 }
 
-static void DSP_write_cmd(rtems_unsigned32 vecnum)
-{
+static char dbgbuf[32];
+
+static void DSP_write_cmd(rtems_unsigned32 vecnum) {
+	sprintf(dbgbuf, "DSP_write_cmd %d\n", vecnum); TRACE(dbgbuf);
 	if (!dsp_write_command(dsp, vecnum / 2, TRUE))
 		Error("ERROR: cannot write command to DSP.\n");
 }
 
-static void DSP_write_cmd_data(rtems_unsigned32 vecnum, rtems_unsigned32 data)
-{
+static void DSP_write_cmd_data(rtems_unsigned32 vecnum, rtems_unsigned32 data) {
+	sprintf(dbgbuf, "DSP_write_cmd %d %d\n", vecnum, data); TRACE(dbgbuf);
 	if (!dsp_write_data(dsp, &data, 1))
 		Error("ERROR: cannot write data to DSP.\n");
 	DSP_write_cmd(vecnum);
+}
+
+static void DSP_write_cmd_data2(rtems_unsigned32 vecnum, rtems_unsigned32 data1, rtems_unsigned32 data2) {
+	sprintf(dbgbuf, "DSP_write_cmd_data2 %d %d %d\n", vecnum, data1, data2); TRACE(dbgbuf);
+	if (!dsp_write_data(dsp, &data1, 1))
+		Error("ERROR: cannot write data to DSP.\n");
+	DSP_write_cmd_data(vecnum, data2);
 }
 
 
@@ -112,18 +143,24 @@ static rtems_unsigned32 adsr_time(rtems_unsigned32 pot) {
 	return c * 0x7fffff;
 }
 
-static void synth_note_off(int notenum) {
-	DSP_write_cmd_data(DSPP_VecHostCommandMidiKeyOff, notenum);
-	if (seqenabled)
-		seqevs += seq_add_event(seqtick, 0, SEQ_EVTYPE_KEYOFF, notenum);
+static void synth_note_off(int notenum, int midichan) {
+	int synthinstru = midichan_to_synth[midichan] - 1;
+	if (synthinstru != -1) {
+		DSP_write_cmd_data2(DSPP_VecHostCommandMidiKeyOff, notenum, synthinstru);
+		if (seqenabled)
+			seqevs += seq_add_event(seqtick, synthinstru, SEQ_EVTYPE_KEYOFF, notenum);
+	}
 }
-static void synth_note_on(int notenum) {
-	DSP_write_cmd_data(DSPP_VecHostCommandMidiKeyOn, notenum);
-	if (seqenabled)
-		seqevs += seq_add_event(seqtick, 0, SEQ_EVTYPE_KEYON, notenum);
+static void synth_note_on(int notenum, int midichan) {
+	int synthinstru = midichan_to_synth[midichan] - 1;
+	if (synthinstru != -1) {
+		DSP_write_cmd_data2(DSPP_VecHostCommandMidiKeyOn, notenum, synthinstru);
+		if (seqenabled)
+			seqevs += seq_add_event(seqtick, synthinstru, SEQ_EVTYPE_KEYON, notenum);
+	}
 }
 
-static void keyevent(enum Key key, int state) {
+static void keydown(enum Key key) {
 	switch (key) {
 	case KEY_SHIFT:
 		seq_init();
@@ -131,16 +168,31 @@ static void keyevent(enum Key key, int state) {
 		DSP_write_cmd(DSPP_VecHostCommandPanic);
 		break;
 	case KEY_EDIT:
-		if (state)
-			seqenabled ^= 1;
+		seqenabled ^= 1;
+		break;
+	case KEY_PART_UP:
+		midichanedit = midichanedit == MIDI_CHAN_MAP_SIZE-1 ? 0 : midichanedit + 1;
+		break;
+	case KEY_PART_DOWN:
+		midichanedit = midichanedit == 0 ? MIDI_CHAN_MAP_SIZE-1 : midichanedit - 1;
+		break;
+	case KEY_GROUP_UP:
+		midichan_to_synth[midichanedit]++;
+		if (midichan_to_synth[midichanedit] == SYNTH_CHANS + 1)
+			midichan_to_synth[midichanedit] = 0;
+		break;
+	case KEY_GROUP_DOWN:
+		midichan_to_synth[midichanedit]--;
+		if (midichan_to_synth[midichanedit] == -1)
+			midichan_to_synth[midichanedit] = SYNTH_CHANS;
 		break;
 	default:
-		if (state)
-			synth_note_on((int)key + 12 * encoval);
-		else
-			synth_note_off((int)key + 12 * encoval);
-		break;
+		synth_note_on((int)key + 12 * encoval, 0);
 	}
+}
+static void keyup(enum Key key) {
+	if (key < NOTE_KEYS)
+		synth_note_off((int)key + 12 * encoval, 0);
 }
 
 // Panel task: interaction with the Chameleon panel
@@ -215,7 +267,10 @@ static rtems_task panel_task(rtems_task_argument argument)
 			while (key_diff) {
 				if (key_diff & mask) {
 					// last 4 (8..11) are shifted by 4, move 12 -> 8 etc
-					keyevent(key < 8 ? key : key - 4, key_bits & mask);
+					if (key_bits & mask)
+						keydown(key < 8 ? key : key - 4);
+					else
+						keyup(key < 8 ? key : key - 4);
 					key_diff ^= mask;
 				}
 				key++;
@@ -283,9 +338,9 @@ static rtems_task midi_task(rtems_task_argument ignored)
 
 		while ((ev = MidiGetEv(ref_midi)) != NULL) {
 			if (EvType(ev) == typeKeyOff || (EvType(ev) == typeKeyOn && Vel(ev) == 0)) {
-				synth_note_off(Pitch(ev));
+				synth_note_off(Pitch(ev), Chan(ev));
 			} else if (EvType(ev) == typeKeyOn) {
-				synth_note_on(Pitch(ev));
+				synth_note_on(Pitch(ev), Chan(ev));
 			}
 			sprintf(debugmsg, "MIDI:type=%d chan=%d key=%d vel=%d\n", EvType(ev), Chan(ev), Pitch(ev), Vel(ev));
 			TRACE(debugmsg);
@@ -338,24 +393,35 @@ static rtems_task seq_task(rtems_task_argument ignored) {
 		while (ev) {
 			switch (ev->type) {
 			case SEQ_EVTYPE_KEYON:
-				DSP_write_cmd_data(DSPP_VecHostCommandMidiKeyOn, ev->param);
+				DSP_write_cmd_data2(DSPP_VecHostCommandMidiKeyOn, ev->param, ev->instrument);
 				break;
 			case SEQ_EVTYPE_KEYOFF:
-				DSP_write_cmd_data(DSPP_VecHostCommandMidiKeyOff, ev->param);
+				DSP_write_cmd_data2(DSPP_VecHostCommandMidiKeyOff, ev->param, ev->instrument);
 				break;
 			}
 			ev = ev->next;
 			n++;
 		}
-		sprintf(text, "%x %x %x_", seqtick & 15, n, seqevs);
+		sprintf(text, "%1x %1x %02x  01234567", seqtick & 15, n, seqevs);
 		panel_out_lcd_print(panel, 0, 0, text);
-		panel_out_lcd_print(panel, 0, 8, "moi");
+		sprintf(text, "%d%d%d%d%d%d%d%d",
+			midichan_to_synth[0],
+			midichan_to_synth[1],
+			midichan_to_synth[2],
+			midichan_to_synth[3],
+			midichan_to_synth[4],
+			midichan_to_synth[5],
+			midichan_to_synth[6],
+			midichan_to_synth[7]
+			);
+		panel_out_lcd_print(panel, 1, 8, text);
 		strcat(text,"\n");
 		//TRACE(text);
 
 		seqtick++;
 		rtems_task_wake_after(period/2);
 		panel_out_led(panel, seqenabled ? PANEL01_LED_SHIFT : 0);
+		panel_out_lcd_print(panel, 1, 8 + midichanedit, " ");
 		rtems_task_wake_after(period/2);
 	}
 
