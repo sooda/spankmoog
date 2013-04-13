@@ -61,7 +61,7 @@ DT	equ	1.0/RATE
 ; Depending on the actual oscillator and filter state sizes, this may be
 ; more than needed, but doesn't matter. NOTE: this must be increased
 ; if it's not enough for some oscillator+filter combination.
-ChannelCapacity  equ 32
+ChannelCapacity  equ 63
 OscStateCapacity equ 16 ; FIXME: just a constant sized block, hope that no one is bigger
 NumChannels      equ 10
 
@@ -79,7 +79,8 @@ ChDataIdx_FiltStateAddr equ 1
 ChDataIdx_AdsrState     equ 2
 ChDataIdx_InstruPtr     equ (2+AdsrStateSize)
 ChDataIdx_InstruIdx     equ (2+AdsrStateSize+1)
-ChDataIdx_OscState      equ (2+AdsrStateSize+2)
+ChDataIdx_Velocity      equ (2+AdsrStateSize+2)
+ChDataIdx_OscState      equ (3+AdsrStateSize+3)
 
 ChNoteDeadBit           equ 23
 ChNoteKeyoffBit         equ 22
@@ -295,7 +296,12 @@ MainLoop:
 				lua (r1+ChDataIdx_AdsrState),r0
 				bsr AdsrInitState
 
-				move Y:InstrumentThatWentDown,r4
+				move Y:InstrumentThatWentDown,a
+				and #>$ff,a
+				move Y:InstrumentThatWentDown,b
+				and #>~$ff,b
+				move a,r4
+				move b,X:(r1+ChDataIdx_Velocity)
 				move r4,X:(r1+ChDataIdx_InstruIdx)
 				move Y:(r4+AllInstruments),r4
 				move r4,X:(r1+ChDataIdx_InstruPtr)
@@ -373,6 +379,10 @@ MainLoop:
 			move a,x0
 			move r3,x1 ; TODO: return adsr value in x1?
 			mpy x0,x1,a ; a *= adsr
+
+			move a,x0
+			move X:(r1+ChDataIdx_Velocity),x1
+			mpy x0,x1,a
 
 			; restore b's value and sum the new sample from a (though scaled by 1/NumChannels)
 			move X:(AccumBackup),b0
@@ -481,6 +491,8 @@ MidiKeyOn:
 	BRCLR	#HSR_HRDF,X:<<HSR,*
 	MOVEP	X:<<HRX,r7
 	MOVE	r7,Y:InstrumentThatWentDown
+	;BRCLR	#HSR_HRDF,X:<<HSR,*
+	;MOVEP	X:<<HRX,r7
 	RTI
 MidiKeyOff:
 	BRCLR	#HSR_HRDF,X:<<HSR,*

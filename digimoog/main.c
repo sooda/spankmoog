@@ -111,6 +111,16 @@ static void DSP_write_cmd_data2(rtems_unsigned32 vecnum, rtems_unsigned32 data1,
 }
 
 
+// FIXME: cannot send three words, would get stuck (?!)
+// hangs all threads, even the blinking led stops, wtf
+static void DSP_write_cmd_data3(rtems_unsigned32 vecnum, rtems_unsigned32 data1, rtems_unsigned32 data2, rtems_unsigned32 data3) {
+	rtems_unsigned32 juttu;
+	sprintf(dbgbuf, "DSP_write_cmd_data3 %d %d %d\n", vecnum, data1, data2); TRACE(dbgbuf);
+	juttu = float_to_fix_round(data3 / 127.0);
+	DSP_write_cmd_data2(vecnum, data1, data2 | (juttu & 0xffff00));
+}
+
+
 // Initialization of the panel and the DSP
 void initialize()
 {
@@ -151,12 +161,12 @@ static void synth_note_off(int notenum, int midichan) {
 			seqevs += seq_add_event(seqtick, synthinstru, SEQ_EVTYPE_KEYOFF, notenum);
 	}
 }
-static void synth_note_on(int notenum, int midichan) {
+static void synth_note_on(int notenum, int midichan, int velocity) {
 	int synthinstru = midichan_to_synth[midichan] - 1;
 	if (synthinstru != -1) {
-		DSP_write_cmd_data2(DSPP_VecHostCommandMidiKeyOn, notenum, synthinstru);
+		DSP_write_cmd_data3(DSPP_VecHostCommandMidiKeyOn, notenum, synthinstru, velocity);
 		if (seqenabled)
-			seqevs += seq_add_event(seqtick, synthinstru, SEQ_EVTYPE_KEYON, notenum);
+			seqevs += seq_add_event2(seqtick, synthinstru, SEQ_EVTYPE_KEYON, notenum, velocity);
 	}
 }
 
@@ -187,7 +197,7 @@ static void keydown(enum Key key) {
 			midichan_to_synth[midichanedit] = SYNTH_CHANS;
 		break;
 	default:
-		synth_note_on((int)key + 12 * encoval, 0);
+		synth_note_on((int)key + 12 * encoval, 0, 10);
 	}
 }
 static void keyup(enum Key key) {
@@ -340,7 +350,7 @@ static rtems_task midi_task(rtems_task_argument ignored)
 			if (EvType(ev) == typeKeyOff || (EvType(ev) == typeKeyOn && Vel(ev) == 0)) {
 				synth_note_off(Pitch(ev), Chan(ev));
 			} else if (EvType(ev) == typeKeyOn) {
-				synth_note_on(Pitch(ev), Chan(ev));
+				synth_note_on(Pitch(ev), Chan(ev), Vel(ev));
 			}
 			sprintf(debugmsg, "MIDI:type=%d chan=%d key=%d vel=%d\n", EvType(ev), Chan(ev), Pitch(ev), Vel(ev));
 			TRACE(debugmsg);
@@ -393,10 +403,10 @@ static rtems_task seq_task(rtems_task_argument ignored) {
 		while (ev) {
 			switch (ev->type) {
 			case SEQ_EVTYPE_KEYON:
-				DSP_write_cmd_data2(DSPP_VecHostCommandMidiKeyOn, ev->param, ev->instrument);
+				DSP_write_cmd_data3(DSPP_VecHostCommandMidiKeyOn, ev->param1, ev->instrument, ev->param2);
 				break;
 			case SEQ_EVTYPE_KEYOFF:
-				DSP_write_cmd_data2(DSPP_VecHostCommandMidiKeyOff, ev->param, ev->instrument);
+				DSP_write_cmd_data2(DSPP_VecHostCommandMidiKeyOff, ev->param1, ev->instrument);
 				break;
 			}
 			ev = ev->next;

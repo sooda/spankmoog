@@ -29,7 +29,10 @@ static struct seqevent* alloc_ev(void) {
 	return ret;
 }
 
-int seq_add_event(int time, int instrument, int type, int param) {
+int seq_add_event(int time, int instrument, int type, rtems_unsigned32 param) {
+	seq_add_event2(time, instrument, type, param, 0);
+}
+int seq_add_event2(int time, int instrument, int type, rtems_unsigned32 param1, rtems_unsigned32 param2) {
 	struct seqevent* next = alloc_ev();
 	struct seqevent* queue;
 
@@ -38,7 +41,8 @@ int seq_add_event(int time, int instrument, int type, int param) {
 
 	next->instrument = instrument;
 	next->type = type;
-	next->param = param;
+	next->param1 = param1;
+	next->param2 = param2;
 
 	queue = seqqueue[ARRMOD(time, SEQ_LENGTH)];
 	if (queue) {
