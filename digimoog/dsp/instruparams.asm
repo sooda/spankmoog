@@ -23,7 +23,7 @@ Instrument_Bass:
 	if !simulator
 vankka	AdsrParamBlock 0.1,0.1,0.5,0.1
 	else
-	AdsrParamBlock 0.005,0.005,0.5,0.005
+vankka	AdsrParamBlock 0.005,0.005,0.5,0.005
 	endif
 ankka	FiltTrivialLpParams 5000 ; TODO: a better way to tune these via the panel
 
