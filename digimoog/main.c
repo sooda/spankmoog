@@ -20,6 +20,23 @@
 
 #include "seq.h"
 
+enum Key {
+	KEY_VALUE_DOWN,
+	KEY_PARAM_DOWN,
+	KEY_VALUE_UP,
+	KEY_PARAM_UP,
+
+	KEY_PAGE_DOWN,
+	KEY_GROUP_DOWN,
+	KEY_PAGE_UP,
+	KEY_GROUP_UP,
+
+	KEY_PART_DOWN,
+	KEY_SHIFT,
+	KEY_PART_UP,
+	KEY_EDIT,
+};
+
 
 // Required definitions for a Chameleon application
 /**********************************************************************/
@@ -32,6 +49,7 @@ rtems_unsigned32 rtems_workspace_start[WORKSPACE_SIZE];
 int panel, dsp;
 
 volatile int seqtick, seqevs, seqenabled;
+rtems_unsigned32 encoval;
 
 // This function is called if an unexpected error occurs
 void Error(char *error)
@@ -105,12 +123,32 @@ static void synth_note_on(int notenum) {
 		seqevs += seq_add_event(seqtick, 0, SEQ_EVTYPE_KEYON, notenum);
 }
 
+static void keyevent(enum Key key, int state) {
+	switch (key) {
+	case KEY_SHIFT:
+		seq_init();
+		seqevs = 0;
+		DSP_write_cmd(DSPP_VecHostCommandPanic);
+		break;
+	case KEY_EDIT:
+		if (state)
+			seqenabled ^= 1;
+		break;
+	default:
+		if (state)
+			synth_note_on((int)key + 12 * encoval);
+		else
+			synth_note_off((int)key + 12 * encoval);
+		break;
+	}
+}
+
 // Panel task: interaction with the Chameleon panel
 static rtems_task panel_task(rtems_task_argument argument)
 {
 	static rtems_signed32	volume_table[128];
 	static rtems_signed32	linear_table[128];
-	rtems_unsigned32	key_bits, key_bits_prev, encoval;
+	rtems_unsigned32	key_bits, key_bits_prev;
 	rtems_unsigned8 	potentiometer;
 	rtems_unsigned8 	encoder;
 	rtems_signed8		increment;
@@ -169,36 +207,19 @@ static rtems_task panel_task(rtems_task_argument argument)
 				break;
 			}
 		} else if (panel_in_keypad(panel, &key_bits)) {
-			// key_diff should only contain one bit here
-			rtems_unsigned32 key_diff = key_bits ^ key_bits_prev, key = 0;
+			rtems_unsigned32 key_diff = key_bits ^ key_bits_prev;
+			rtems_unsigned32 mask = 0x80000000;
+			int key = 0;
+
 			key_bits_prev = key_bits;
-			switch (key_diff) {
-				case 0x80000000: key = 0; break; // value down
-				case 0x40000000: key = 1; break; // param down
-				case 0x20000000: key = 2; break; // value up
-				case 0x10000000: key = 3; break; // param up
-				case 0x08000000: key = 4; break; // page down
-				case 0x04000000: key = 5; break; // group down
-				case 0x02000000: key = 6; break; // page up
-				case 0x01000000: key = 7; break; // group up
-				case 0x00080000: key = 8; break; // part down
-				case 0x00040000: key = 9; break; // shift
-				case 0x00020000: key = 10; break; // part up
-				case 0x00010000: key = 11; break; // edit
-			}
-			if (key == 11) {
-				seq_init();
-				seqevs = 0;
-				DSP_write_cmd(DSPP_VecHostCommandPanic);
-			} else if (key == 9) {
-				if (key_bits)
-					seqenabled ^= 1;
-			} else {
-				key += 12 * encoval;
-				if (key_bits)
-					synth_note_on(key);
-				else
-					synth_note_off(key);
+			while (key_diff) {
+				if (key_diff & mask) {
+					// last 4 (8..11) are shifted by 4, move 12 -> 8 etc
+					keyevent(key < 8 ? key : key - 4, key_bits & mask);
+					key_diff ^= mask;
+				}
+				key++;
+				mask >>= 1;
 			}
 		} else if (panel_in_encoder(panel, &encoder, &increment)) {
 			encoval += increment;
@@ -266,7 +287,7 @@ static rtems_task midi_task(rtems_task_argument ignored)
 			} else if (EvType(ev) == typeKeyOn) {
 				synth_note_on(Pitch(ev));
 			}
-			sprintf(debugmsg, "MIDI:chan=%d key=%d vel=%d\n", Chan(ev), Pitch(ev), Vel(ev));
+			sprintf(debugmsg, "MIDI:type=%d chan=%d key=%d vel=%d\n", EvType(ev), Chan(ev), Pitch(ev), Vel(ev));
 			TRACE(debugmsg);
 		}
 	}
@@ -328,6 +349,7 @@ static rtems_task seq_task(rtems_task_argument ignored) {
 		}
 		sprintf(text, "%x %x %x_", seqtick & 15, n, seqevs);
 		panel_out_lcd_print(panel, 0, 0, text);
+		panel_out_lcd_print(panel, 0, 8, "moi");
 		strcat(text,"\n");
 		//TRACE(text);
 
