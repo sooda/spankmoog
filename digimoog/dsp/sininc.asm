@@ -1,0 +1,1 @@
+LFOSinStateSize equ 3

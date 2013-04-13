@@ -15,7 +15,8 @@ DSPDEPENDS := \
 	instrucode.asm instruparams.asm \
 	osc.asm oscinc.asm \
 	dpw_coefs.asm saw_ticks.asm \
-	filt.asm filtinc.asm
+	filt.asm filtinc.asm \
+	sin_table.asm sin.asm
 
 include /Chameleon.sdk/make/maindsp.mak
 

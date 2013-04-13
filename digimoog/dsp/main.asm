@@ -55,6 +55,7 @@ DT	equ	1.0/RATE
 	include 'oscinc.asm'
 	include 'filtinc.asm'
 	include 'adsrinc.asm'
+	include 'sininc.asm'
 
 ; ChannelCapacity is the fixed size for each channel.
 ; Depending on the actual oscillator and filter state sizes, this may be
@@ -136,6 +137,7 @@ PanicState:
 	include 'instruparams.asm'
 	include 'dpw_coefs.asm'
 	include 'saw_ticks.asm'
+	include 'sin_table.asm'
 ;**********************************************************************
 ; Interrupt vectors
 ;**********************************************************************
@@ -418,6 +420,7 @@ MainLoop:
 	include 'adsr.asm'
 	include 'osc.asm'
 	include 'filt.asm'
+	include 'sin.asm'
 
 ;*******************************************	
 ;INTERRUPT ROUTINES
