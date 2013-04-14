@@ -27,34 +27,33 @@ vankka	AdsrParamBlock 0.005,0.005,0.5,0.005
 	endif
 ankka	FiltTrivialLpParams 5000 ; TODO: a better way to tune these via the panel
 
-; just another identical one for testing; it sounds different anyway when the panel pots are tuned a bit
-Instrument_Bass2:
-	dc BassInit-ChAlloc_InitInstruState
+Instrument_BassLfo:
+	dc BassLfoInit-ChAlloc_InitInstruState
 	dc BassOsc-ChEval_OscEvalBranch
-	dc BassFilt-ChEval_FiltEvalBranch
+	dc BassLfoFilt-ChEval_FiltEvalBranch
 	if !simulator
 	AdsrParamBlock 0.1,0.1,0.5,0.1
 	else
 	AdsrParamBlock 0.005,0.005,0.5,0.005
 	endif
-	FiltTrivialLpParams 5000
+	FiltTrivialLpParamsLfo 1200,1000
 
 AllInstruments:
 	dc Instrument_Bass
-	dc Instrument_Bass2
+	dc Instrument_BassLfo
 NumInstruments dc 2
 
 ; CALLING CONVENTION
 ; Init:
 ; 	args:
-;		X:r1: workspace
+;		X:r1: channel workspace pointer
 ;		Y:r4: instrument
 ;		n2: note number
-; Osc:
+; Osc and filt:
 ;	as with plain oscillators, and then some
 ;	args:
-;		X:r0: state
+;		X:r0: state pointer
 ;		X:r1: channel pointer
-;		X:r4: instrument pointer
+;		Y:r4: instrument pointer
 	; input and output: A
 

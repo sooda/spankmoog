@@ -1,4 +1,5 @@
 FiltTrivialLpParamsIdx_Coef	equ	0
+FiltTrivialLpParamsIdx_Lfo	equ	1
 
 FiltTrivialLpStateIdx_Val	equ	0
 FiltTrivialLpStateIdx_Coef	equ	1

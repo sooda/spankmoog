@@ -82,6 +82,8 @@ ChDataIdx_InstruIdx     equ (2+AdsrStateSize+1)
 ChDataIdx_Velocity      equ (2+AdsrStateSize+2)
 ChDataIdx_OscState      equ (3+AdsrStateSize+3)
 
+ChDataIdx_FiltState     equ (ChDataIdx_OscState+OscStateCapacity)
+
 ChNoteDeadBit           equ 23
 ChNoteKeyoffBit         equ 22
 
@@ -94,6 +96,7 @@ ChNoteKeyoffBit         equ 22
 ChannelData: ds NumChannels*ChannelCapacity
 AccumBackup ds 3
 AccumBackup2 ds 3
+AccumBackupLfo ds 3
 
 	org	Y:$000000
 
@@ -306,7 +309,7 @@ MainLoop:
 				move Y:(r4+AllInstruments),r4
 				move r4,X:(r1+ChDataIdx_InstruPtr)
 
-				lua (r1+ChDataIdx_OscState+OscStateCapacity),r0
+				lua (r1+ChDataIdx_OscState+OscStateCapacity),r0 ; FIXME: filtstate renders this useless
 				move r0,X:(r1+ChDataIdx_FiltStateAddr)
 
 				move Y:(r4+InstruParamIdx_InitFunc),r0

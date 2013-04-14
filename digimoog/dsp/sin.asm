@@ -34,48 +34,48 @@ LFOSinInitState:
 
 ; Compute next value of sin
 ; Input:
-; 	X:(r0): state
+; 	X:(r2): state
 ; Output:
-; 	r3: approximate sin value
+; 	x1: approximate sin value
 ; Work registers:
-; 	b, x0, y0, r4
+; 	b, x0, y0, r6
 LFOSinEval:
 	; compute result
 	; in the comments here, let's abbreviate SinTable by T and SinTableSize by N.
 	; TODO: reorder these and get rid of some stalls
 
-	move X:(r0+LFOSinStateIdx_M),b  ; b  = M
+	move X:(r2+LFOSinStateIdx_M),b  ; b  = M
 	and #>(SinTableSize-1),b        ; b  = M % N (NOTE: we're assuming N is a power of two)
-	move b,r4                       ; r4 = M % N
-	move Y:(r4+SinTable),x0         ; x0  = T[M % N]
+	move b,r6                       ; r6 = M % N
+	move Y:(r6+SinTable),x0         ; x0  = T[M % N]
 	add #>1,b                       ; b  = M+1
 	and #>(SinTableSize-1),b        ; b  = (M+1) % N
-	move b,r4                       ; r4 = (M+1) % N
-	move Y:(r4+SinTable),b          ; b  = T[(M+1) % N]
+	move b,r6                       ; r6 = (M+1) % N
+	move Y:(r6+SinTable),b          ; b  = T[(M+1) % N]
 	sub x0,b                        ; b  = T[(M+1) % N] - T[M % N]
 	move b,y0                       ; y0 = T[(M+1) % N] - T[M % N]
 	move x0,b                       ; b = T[M % N]
-	move X:(r0+LFOSinStateIdx_f),x0 ; x0 = f
+	move X:(r2+LFOSinStateIdx_f),x0 ; x0 = f
 	mac x0,y0,b                     ; b  = T[M % N] + f*(T[(M+1) % N] - T[M % N])  (this is the interpolated result)
-	move b,r3
+	move b,x1
 
 	; advance the state
 
 	move x0,b                        ; b = f
-	move X:(r0+LFOSinStateIdx_c),y0  ; y0 = c
+	move X:(r2+LFOSinStateIdx_c),y0  ; y0 = c
 	add y0,b                         ; b = f+c
 	cmp #1.0,b
 	ble _noMinc ; TODO: can use brclr instead of cmp and ble?
 		; addition resulted in bigger than 1.0
 		add #-1.0,b                     ; b = f+c - 1.0
-		move b,X:(r0+LFOSinStateIdx_f)
+		move b,X:(r2+LFOSinStateIdx_f)
 
-		move X:(r0+LFOSinStateIdx_M),b0 ; ..
+		move X:(r2+LFOSinStateIdx_M),b0 ; ..
 		inc b                           ; ..
-		move b0,X:(r0+LFOSinStateIdx_M) ; M++
+		move b0,X:(r2+LFOSinStateIdx_M) ; M++
 		bra _end
 
 _noMinc:
-	move b,X:(r0+LFOSinStateIdx_f)
+	move b,X:(r2+LFOSinStateIdx_f)
 _end:
 	rts
