@@ -338,6 +338,9 @@ MainLoop:
 			move b1,X:(AccumBackup+1)
 			move b2,X:(AccumBackup+2)
 
+			; TODO: maybe read this and r1 always before calling
+			; those so they don't need to backup these. it's just a
+			; couple of cycles.
 			move X:(r1+ChDataIdx_InstruPtr),r4
 		
 			; evaluate oscillator

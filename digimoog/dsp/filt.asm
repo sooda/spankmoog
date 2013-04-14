@@ -3,6 +3,7 @@ FiltTrivialLpParamsIdx_Lfo	equ	1
 
 FiltTrivialLpStateIdx_Val	equ	0
 FiltTrivialLpStateIdx_Coef	equ	1
+FiltTrivialLpState_Size		equ	2
 
 ; args: workspace at X:(r0), params at Y:(r5)
 ; work regs: x1

@@ -5,7 +5,6 @@ FiltTrivialLpParams	macro	fc
 	dc	((FiltTrivLpK*fc)/(FiltTrivLpK*fc+1))
 	endm
 
-
 ; the coefficient for a frequency, and a derivarive of the magic coef function
 ; at the same point - multiplied by the lfo amplitude.
 
@@ -17,5 +16,7 @@ FiltTrivialLpParamsLfo	macro	fc,lfo
 	;dc	(-pow(FiltTrivLpK,2)/@pow(FiltTrivLpK*fc+1,3))
 	endm
 
+FiltTrivialLpParamsSize equ 1
+FiltTrivialLpParamsLfoSize equ 2
 
 FiltTrivialLpStateSize equ 2

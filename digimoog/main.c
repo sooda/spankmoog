@@ -70,7 +70,7 @@ static rtems_unsigned32 encoval;
 // otherwise, synth_idx = midichan_to_synth[midichan] - 1
 // note that the program change events are not used for anything
 // the keypad buttons work at channel 0
-#define SYNTH_CHANS 2
+#define SYNTH_CHANS 3
 #define MIDI_CHAN_MAP_SIZE 8
 static int midichan_to_synth[MIDI_CHAN_MAP_SIZE];
 static int midichanedit;

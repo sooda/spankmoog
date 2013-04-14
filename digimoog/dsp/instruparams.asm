@@ -27,10 +27,10 @@ vankka	AdsrParamBlock 0.005,0.005,0.5,0.005
 	endif
 ankka	FiltTrivialLpParams 5000 ; TODO: a better way to tune these via the panel
 
-Instrument_BassLfo:
-	dc BassLfoInit-ChAlloc_InitInstruState
+Instrument_BassSinLfo:
+	dc BassSinLfoInit-ChAlloc_InitInstruState
 	dc BassOsc-ChEval_OscEvalBranch
-	dc BassLfoFilt-ChEval_FiltEvalBranch
+	dc BassSinLfoFilt-ChEval_FiltEvalBranch
 	if !simulator
 	AdsrParamBlock 0.1,0.1,0.5,0.1
 	else
@@ -38,9 +38,26 @@ Instrument_BassLfo:
 	endif
 	FiltTrivialLpParamsLfo 1200,1000
 
+Instrument_BassAdsrLfo:
+	dc BassAdsrLfoInit-ChAlloc_InitInstruState
+	dc BassOsc-ChEval_OscEvalBranch
+	dc BassAdsrLfoFilt-ChEval_FiltEvalBranch
+	if !simulator
+	AdsrParamBlock 0.1,0.1,0.5,0.1
+	else
+	AdsrParamBlock 0.005,0.005,0.5,0.005
+	endif
+	FiltTrivialLpParamsLfo 500,3500
+	; NOTE: R phase >= main adsr R so that gets killed appropriately
+	;AdsrParamBlock 2.5,0.1,1.0,1.0
+	AdsrParamBlock 0.001,0.2,0.0,1.0
+
+InstruBassAdsrIdx_FiltAdsr	equ	InstruParamIdx_End+FiltTrivialLpParamsLfoSize
+
 AllInstruments:
 	dc Instrument_Bass
-	dc Instrument_BassLfo
+	dc Instrument_BassSinLfo
+	dc Instrument_BassAdsrLfo
 NumInstruments dc 2
 
 ; CALLING CONVENTION
