@@ -18,3 +18,6 @@ PlsDpwIdx_Saw0	equ	0
 PlsDpwIdx_Saw1	equ	DpwOscSize
 PlsDpwIdx_Duty	equ	2*DpwOscSize
 PlsDpwSize	equ	2*DpwOscSize+1 ; don't optimize this, too much copypasta in dpw
+
+NoiseOscIdx_Current equ 0
+NoiseOscSize equ 1

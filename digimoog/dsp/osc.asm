@@ -3,6 +3,7 @@
 ; - dpw corrected saw wave,
 ; - trivial pulse wave (difference of two saws),
 ; - dpw'd pulse wave (difference of two dpw saws)
+; - noise
 
 
 ; INITIALIZATION ROUTINES
@@ -60,6 +61,14 @@ PlsDpwInit:
 	move X:(r0+SawOscIdx_Val),a ; TODO: update dpwval to be a^2
 	add x0,a
 	move a,X:(r0+SawOscIdx_Val)
+	rts
+
+; args: workspace at X:(r0)
+; work regs: x1
+NoiseInit:
+	; seed = 1
+	move #>1,x1
+	move x1,X:(r0+NoiseOscIdx_Current)
 	rts
 
 
@@ -129,4 +138,39 @@ OscDpwplsEval:
 	blt _ovf	; 0.6-0.1=0.5 ok, -0.9-0.6=-1.5 notok
 	rts
 _ovf:	add #>1.0,a	; fix <-1 condition
+	rts
+
+; params: workspace at X:(r0)
+; work regs: a, x0
+; output in: a (see value range docs above in init)
+NoiseEval:
+	; 24-bit xorshift, period length 2**24-1
+	; pseudocode (v is 24-bit):
+	;   v = previous value (or seed)
+	;   v ^= v<<8
+	;   v ^= v>>1
+	;   v ^= v<<11
+	;   new previous value = v
+	;   return v
+
+	move X:(r0+NoiseOscIdx_Current),a1
+
+	move a1,x0
+	lsl #8,a
+	eor x0,a
+
+	move a1,x0
+	lsr a
+	eor x0,a
+
+	move a1,x0
+	lsl #11,a
+	eor x0,a
+
+	move a1,X:(r0+NoiseOscIdx_Current)
+
+	; sign-extend to a2
+	move a1,x0
+	move x0,a
+
 	rts
