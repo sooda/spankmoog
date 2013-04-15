@@ -137,6 +137,7 @@ OutputOsc:
 	ds 1
 PanicState:
 	ds 1
+OutputHax ds 1
 
 	include 'instruparams.asm'
 	include 'dpw_coefs.asm'
@@ -217,6 +218,14 @@ Start:
 
 	move x0,Y:PanicState
 
+	; simulate just one keypress
+	if simulator
+		move #>100,x0
+		move x0,Y:NoteThatWentDown
+		move #>$7fff03,x0
+		move x0,Y:InstrumentThatWentDown
+	endif
+
 MainLoop:
 	; reset the counter control reg first
 	move #>0,x0
@@ -287,7 +296,7 @@ MainLoop:
 
 		; find a free channel and initialize there
 		; NOTE: if no free channels are available, the new note is just ignored.
-		; NOTE: the inits must not edit r1 or r4.
+		; NOTE: the inits must not edit r1 or r4. (FIXME: is this true anymore?)
 	AllocChannel:
 		move #>ChannelData,r1
 		do #NumChannels,ChannelAllocationLoopEnd

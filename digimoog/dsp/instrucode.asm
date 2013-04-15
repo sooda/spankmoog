@@ -102,3 +102,57 @@ BassAdsrLfoFilt:
 
 	DoLfoLp
 	rts
+
+; indices inside the filter state
+PulseBassStateIdx_LpFilt equ 0
+PulseBassStateIdx_Adsr   equ FiltTrivialLpStateSize
+
+PulseBassInit:
+	lua (r1+ChDataIdx_FiltState),r0
+	lua (r4+InstruBassIdx_Lp),r5
+	bsr FiltTrivialLpInit
+
+	lua (r1+ChDataIdx_FiltState+PulseBassStateIdx_Adsr),r0
+	bsr AdsrInitState
+
+	lua (r1+ChDataIdx_OscState),r0
+	move n2,r4
+	move Y:(Instrument_PulseBass+InstruPulseBassIdx_DutyBase),x1
+	bsr PlsDpwInit
+
+	rts
+
+PulseBassOsc:
+	bra OscDpwplsEval
+
+PulseBassFilt:
+	;rts ; bsr FiltTrivialLpEval
+
+	; use the ADSR as an LFO:
+	; the ADSR needs the A register, and also r0 and r4 are swapped
+	; "push" and "pop" the state to registers temporarily
+	; TODO: do something more clever with this
+	move a,r6
+	move r4,n4
+	move r0,n0
+
+	lua (r0+PulseBassStateIdx_Adsr),r2
+	lua (r4+InstruPulseBassIdx_FiltAdsr),r0
+	move r2,r4
+	move #>0,r2 ; don't kill the note
+	bsr AdsrEval
+	move r3,Y:OutputHax
+
+	move r3,x1
+	move #0.1,a
+	mac #0.9,x1,a
+	move a,x1
+
+	move r6,a
+	move n0,r0
+	move n4,r4
+
+	; TODO: adsr r3 (x1) into duty cycle of the osc (we're not touching the filter)
+	; FIXME: move this to the osc function
+	move x1,X:(r1+ChDataIdx_OscState+PlsDpwIdx_Duty)
+	rts

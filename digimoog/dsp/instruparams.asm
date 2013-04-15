@@ -42,11 +42,7 @@ Instrument_BassAdsrLfo:
 	dc BassAdsrLfoInit-ChAlloc_InitInstruState
 	dc BassOsc-ChEval_OscEvalBranch
 	dc BassAdsrLfoFilt-ChEval_FiltEvalBranch
-	if !simulator
 	AdsrParamBlock 0.1,0.1,0.5,0.1
-	else
-	AdsrParamBlock 0.005,0.005,0.5,0.005
-	endif
 	FiltTrivialLpParamsLfo 500,3500
 	; NOTE: R phase >= main adsr R so that gets killed appropriately
 	;AdsrParamBlock 2.5,0.1,1.0,1.0
@@ -54,11 +50,27 @@ Instrument_BassAdsrLfo:
 
 InstruBassAdsrIdx_FiltAdsr	equ	InstruParamIdx_End+FiltTrivialLpParamsLfoSize
 
+Instrument_PulseBass:
+	dc PulseBassInit-ChAlloc_InitInstruState
+	dc PulseBassOsc-ChEval_OscEvalBranch
+	dc PulseBassFilt-ChEval_FiltEvalBranch
+	AdsrParamBlock 0.1,0.1,0.5,0.1
+	FiltTrivialLpParams 5000
+	; NOTE: R phase >= main adsr R so that gets killed appropriately
+	;AdsrParamBlock 2.5,0.1,1.0,1.0
+	; note: D is meaningless if S is at 1 (check that it won't crash with D=0 then)
+	AdsrParamBlock 3,0.1,1.0,1.0
+	dc 0.01
+
+InstruPulseBassIdx_FiltAdsr	equ	InstruParamIdx_End+FiltTrivialLpParamsSize
+; base value = where we add lfo stuff to.
+InstruPulseBassIdx_DutyBase	equ	InstruParamIdx_End+FiltTrivialLpParamsSize+AdsrParamsSize
+
 AllInstruments:
 	dc Instrument_Bass
 	dc Instrument_BassSinLfo
 	dc Instrument_BassAdsrLfo
-NumInstruments dc 2
+	dc Instrument_PulseBass
 
 ; CALLING CONVENTION
 ; Init:

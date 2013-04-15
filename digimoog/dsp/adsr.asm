@@ -33,8 +33,6 @@ AdsrParamIdx_D	equ	1
 AdsrParamIdx_S	equ	2
 AdsrParamIdx_R	equ	3
 
-AdsrParamsSize  equ	4
-
 ; struct indices
 AdsrStateIdx_Mode equ	0 ; a/d/r
 AdsrStateIdx_Val  equ	1 ; previous value

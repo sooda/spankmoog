@@ -125,9 +125,23 @@ _ovf:	add #>1.0,a	; fix <-1 condition
 ; params: X:r0 = state pointer
 ; work regs: x0, a, b
 ; output in: a (see value range docs above in init)
-; TODO: live duty cycle changes? get value of first, add dc, put to second val
 ; NOTE: ugly copypasta from above, PlsOsc -> PlsDpw, OscTrivial -> Oscdpw
 OscDpwplsEval:
+	; WIP: live duty cycle changes? get value of first, add dc, put to second val, compute new dpw val
+	move X:(r0+PlsDpwIdx_Saw0+DpwOscIdx_Saw+SawOscIdx_Val),a
+	move X:(r0+PlsDpwIdx_Duty),x0
+	add x0,a
+	cmp #>1.0,a
+	ble _notovf ; FIXME :(
+		add #>-1.0,a
+		add #>-1.0,a
+	_notovf:
+	move a,x0
+	move a,X:(r0+PlsDpwIdx_Saw1+DpwOscIdx_Saw+SawOscIdx_Val)
+	mpy x0,x0,a
+	move a,X:(r0+PlsDpwIdx_Saw1+DpwOscIdx_Val)
+	; FIXME: saw 1 does not need bsr osctrivialsaweval
+
 	bsr OscDpwsawEval
 	move a,b
 	lea (r0+PlsDpwIdx_Saw1),r0

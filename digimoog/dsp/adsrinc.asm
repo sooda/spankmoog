@@ -13,3 +13,4 @@ AdsrParamBlock	macro	At,Dt,Sl,Rt
 	endm
 
 AdsrStateSize     equ	4
+AdsrParamsSize  equ	4

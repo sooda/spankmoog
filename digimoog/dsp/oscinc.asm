@@ -16,7 +16,7 @@ PlsOscSize	equ	2*SawOscSize+1 ; TODO: optimize into using just one saw and diffe
 
 PlsDpwIdx_Saw0	equ	0
 PlsDpwIdx_Saw1	equ	DpwOscSize
-PlsDpwIdx_Duty	equ	2*DpwOscSize
+PlsDpwIdx_Duty	equ	2*DpwOscSize ; 0=0% (1:0), 1=50% (1:1)
 PlsDpwSize	equ	2*DpwOscSize+1 ; don't optimize this, too much copypasta in dpw
 
 NoiseOscIdx_Current equ 0
