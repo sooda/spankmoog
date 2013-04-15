@@ -62,7 +62,7 @@ DT	equ	1.0/RATE
 ; more than needed, but doesn't matter. NOTE: this must be increased
 ; if it's not enough for some oscillator+filter combination.
 ChannelCapacity  equ 63
-OscStateCapacity equ 16 ; FIXME: just a constant sized block, hope that no one is bigger
+OscStateCapacity equ 25 ; FIXME: just a constant sized block, hope that no one is bigger
 NumChannels      equ 10
 
 ; Channel data format:
@@ -80,7 +80,7 @@ ChDataIdx_AdsrState     equ 2
 ChDataIdx_InstruPtr     equ (2+AdsrStateSize)
 ChDataIdx_InstruIdx     equ (2+AdsrStateSize+1)
 ChDataIdx_Velocity      equ (2+AdsrStateSize+2)
-ChDataIdx_OscState      equ (3+AdsrStateSize+3)
+ChDataIdx_OscState      equ (2+AdsrStateSize+3)
 
 ChDataIdx_FiltState     equ (ChDataIdx_OscState+OscStateCapacity)
 

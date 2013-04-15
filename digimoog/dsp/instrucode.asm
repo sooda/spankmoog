@@ -103,16 +103,15 @@ BassAdsrLfoFilt:
 	DoLfoLp
 	rts
 
-; indices inside the filter state
-PulseBassStateIdx_LpFilt equ 0
-PulseBassStateIdx_Adsr   equ FiltTrivialLpStateSize
+; indices inside the oscillator state
+PulseBassStateIdx_Adsr   equ PlsDpwSize
 
 PulseBassInit:
 	lua (r1+ChDataIdx_FiltState),r0
 	lua (r4+InstruBassIdx_Lp),r5
 	bsr FiltTrivialLpInit
 
-	lua (r1+ChDataIdx_FiltState+PulseBassStateIdx_Adsr),r0
+	lua (r1+ChDataIdx_OscState+PulseBassStateIdx_Adsr),r0
 	bsr AdsrInitState
 
 	lua (r1+ChDataIdx_OscState),r0
@@ -123,16 +122,10 @@ PulseBassInit:
 	rts
 
 PulseBassOsc:
-	bra OscDpwplsEval
-
-PulseBassFilt:
-	;rts ; bsr FiltTrivialLpEval
-
-	; use the ADSR as an LFO:
-	; the ADSR needs the A register, and also r0 and r4 are swapped
+	; use the ADSR as an LFO: tune the duty cycle
+	; r0 and r4 are swapped for adsr (FIXME)
 	; "push" and "pop" the state to registers temporarily
 	; TODO: do something more clever with this
-	move a,r6
 	move r4,n4
 	move r0,n0
 
@@ -143,16 +136,16 @@ PulseBassFilt:
 	bsr AdsrEval
 	move r3,Y:OutputHax
 
-	move r3,x1
-	move #0.1,a
-	mac #0.9,x1,a
-	move a,x1
-
-	move r6,a
 	move n0,r0
 	move n4,r4
 
-	; TODO: adsr r3 (x1) into duty cycle of the osc (we're not touching the filter)
-	; FIXME: move this to the osc function
-	move x1,X:(r1+ChDataIdx_OscState+PlsDpwIdx_Duty)
+	move r3,x1
+	move Y:(r4+InstruPulseBassIdx_DutyBase),a
+	move Y:(r4+InstruPulseBassIdx_DutyAmpl),x0
+	mac x0,x1,a
+	move a,X:(r1+ChDataIdx_OscState+PlsDpwIdx_Duty)
+
+	bra OscDpwplsEval
+
+PulseBassFilt:
 	rts

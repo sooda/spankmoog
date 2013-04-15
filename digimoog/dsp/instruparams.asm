@@ -55,16 +55,15 @@ Instrument_PulseBass:
 	dc PulseBassOsc-ChEval_OscEvalBranch
 	dc PulseBassFilt-ChEval_FiltEvalBranch
 	AdsrParamBlock 0.1,0.1,0.5,0.1
-	FiltTrivialLpParams 5000
 	; NOTE: R phase >= main adsr R so that gets killed appropriately
-	;AdsrParamBlock 2.5,0.1,1.0,1.0
-	; note: D is meaningless if S is at 1 (check that it won't crash with D=0 then)
-	AdsrParamBlock 3,0.1,1.0,1.0
-	dc 0.01
+	AdsrParamBlock 3,0.00000001,1.0,1.0
+	dc 0.1 ; base lfo duty cycle
+	dc 0.9 ; adsr amplitude
 
-InstruPulseBassIdx_FiltAdsr	equ	InstruParamIdx_End+FiltTrivialLpParamsSize
+InstruPulseBassIdx_FiltAdsr	equ	InstruParamIdx_End
 ; base value = where we add lfo stuff to.
-InstruPulseBassIdx_DutyBase	equ	InstruParamIdx_End+FiltTrivialLpParamsSize+AdsrParamsSize
+InstruPulseBassIdx_DutyBase	equ	InstruParamIdx_End+AdsrParamsSize
+InstruPulseBassIdx_DutyAmpl	equ	InstruParamIdx_End+AdsrParamsSize+1
 
 AllInstruments:
 	dc Instrument_Bass
