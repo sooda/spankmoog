@@ -149,3 +149,13 @@ PulseBassOsc:
 
 PulseBassFilt:
 	rts
+
+
+NoiseInstInit:
+	bra NoiseInit
+
+NoiseInstOsc:
+	bra NoiseEval
+
+NoiseInstFilt:
+	rts

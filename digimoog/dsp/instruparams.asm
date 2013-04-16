@@ -69,11 +69,22 @@ InstruPulseBassIdx_FiltAdsr	equ	InstruParamIdx_End
 InstruPulseBassIdx_DutyBase	equ	InstruParamIdx_End+AdsrParamsSize
 InstruPulseBassIdx_DutyAmpl	equ	InstruParamIdx_End+AdsrParamsSize+1
 
+Instrument_Noise:
+	dc NoiseInstInit-ChAlloc_InitInstruState
+	dc NoiseInstOsc-ChEval_OscEvalBranch
+	dc NoiseInstFilt-ChEval_FiltEvalBranch
+	if !simulator
+	AdsrParamBlock 0.1,0.1,0.5,0.1
+	else
+	AdsrParamBlock 0.005,0.005,0.5,0.005
+	endif
+
 AllInstruments:
 	dc Instrument_Bass
 	dc Instrument_BassSinLfo
 	dc Instrument_BassAdsrLfo
 	dc Instrument_PulseBass
+	dc Instrument_Noise
 
 ; addresses of tunable parameters
 ; these shall come with an accompanying manual with number mappings

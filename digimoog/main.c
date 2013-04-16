@@ -70,7 +70,7 @@ static rtems_unsigned32 encoval;
 // otherwise, synth_idx = midichan_to_synth[midichan] - 1
 // note that the program change events are not used for anything
 // the keypad buttons work at channel 0
-#define SYNTH_CHANS 4
+#define SYNTH_INSTRUS 5
 #define MIDI_CHAN_MAP_SIZE 8
 static int midichan_to_synth[MIDI_CHAN_MAP_SIZE];
 static int midichanedit;
@@ -210,13 +210,13 @@ static void keydown(enum Key key) {
 		break;
 	case KEY_GROUP_UP:
 		midichan_to_synth[midichanedit]++;
-		if (midichan_to_synth[midichanedit] == SYNTH_CHANS + 1)
+		if (midichan_to_synth[midichanedit] == SYNTH_INSTRUS + 1)
 			midichan_to_synth[midichanedit] = 0;
 		break;
 	case KEY_GROUP_DOWN:
 		midichan_to_synth[midichanedit]--;
 		if (midichan_to_synth[midichanedit] == -1)
-			midichan_to_synth[midichanedit] = SYNTH_CHANS;
+			midichan_to_synth[midichanedit] = SYNTH_INSTRUS;
 		break;
 	case KEY_PAGE_UP:
 		tunableedit = tunableedit == 2 ? 0 : tunableedit + 1;
