@@ -56,7 +56,11 @@ Instrument_PulseBass:
 	dc PulseBassFilt-ChEval_FiltEvalBranch
 	AdsrParamBlock 0.1,0.1,0.5,0.1
 	; NOTE: R phase >= main adsr R so that gets killed appropriately
+	if !simulator
 	AdsrParamBlock 3,0.00000001,1.0,1.0
+	else
+	AdsrParamBlock 0.03,0.00000001,1.0,1.0
+	endif
 	dc 0.1 ; base lfo duty cycle
 	dc 0.9 ; adsr amplitude
 
