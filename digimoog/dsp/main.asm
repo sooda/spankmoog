@@ -3,26 +3,22 @@
 ;**********************************************************************
 ; S-89.3510 Assignment: Virtual analog synthesizer                    *
 ;                                                                     *
-; By Konsta Hölttä and Nuutti Hölttä                                  *
+; By Konsta Hölttä and Nuutti Hölttä 2013                             *
 ;                                                                     *
-; Current state:                                                      *
-; - a structure for channel freeing and allocation and note playing   *
-; - midi key on and key off input (velocity currently ignored)        *
-; - Some oscillators (saw, dpw, pulse, dpw pulse)                     *
-; - framework for implementing several filters/effects                *
+; Current state: pretty much everything here and there                *
 ;                                                                     *
 ; Non-exhaustive list of TODOs in no particular order:                *
 ; - A better way to handle the midi events in a queue or something    *
-; - ADSR and LFO for filters                                          *
 ; - more interesting instruments                                      *
 ; - fix, optimize and prettify all the things                         *
+; - rewrite the current state documentation above                     *
 ;                                                                     *
 ; Some basic stuff based on:                                          *
 ; Project work template for sample-based audio I/O (polling)          *
 ; Based on the example dspthru by Soundart                            *
 ; Hannu Pulakka, March 2006, February 2007                            *
 ; Modified by Antti Pakarinen, February 2012, update in March 2012    *
-; Register r7 is reserved for interrupt routines as default           *
+; Registers r7+n7 are reserved for interrupt routines as default      *
 ;**********************************************************************
 
 	nolist
@@ -102,12 +98,6 @@ AccumBackupLfo ds 3
 
 MasterVolume:		
 	ds	1		
-CTRL1Value:		;Holds the current value of control pot 1 (lin scale $0-$7FFFFF)
-	ds	1	
-CTRL2Value:		;Holds the current value of control pot 2 (lin scale $0-$7FFFFF)
-	ds	1	
-CTRL3Value:		;Holds the current value of control pot 3 (lin scale $0-$7FFFFF)
-	ds	1
 NoteThatWentDown: ; If a key just went down, this holds the note value. Otherwise, this has highest bit set.
 	ds	1
 InstrumentThatWentDown: ; If a key just went down, this holds the new instrument index for that
@@ -149,12 +139,8 @@ OutputHax ds 1
 	org	P:VecHostCommandDefault
 VecHostCommandUpdateVolume:
 	JSR	>UpdateVolume
-VecHostCommandUpdateCTRL1:
-	JSR	>UpdateCTRL1
-VecHostCommandUpdateCTRL2:
-	JSR	>UpdateCTRL2
-VecHostCommandUpdateCTRL3:
-	JSR	>UpdateCTRL3
+VecHostCommandUpdateTunable:
+	JSR	>UpdateTunable
 VecHostCommandEncoderUp:
 	JSR	>EncoderUp
 VecHostCommandEncoderDown:

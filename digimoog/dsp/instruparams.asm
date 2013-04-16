@@ -21,11 +21,11 @@ Instrument_Bass:
 	dc BassOsc-ChEval_OscEvalBranch
 	dc BassFilt-ChEval_FiltEvalBranch
 	if !simulator
-vankka	AdsrParamBlock 0.1,0.1,0.5,0.1
+tune1	AdsrParamBlock 0.1,0.1,0.5,0.1
 	else
-vankka	AdsrParamBlock 0.005,0.005,0.5,0.005
+tune1	AdsrParamBlock 0.005,0.005,0.5,0.005
 	endif
-ankka	FiltTrivialLpParams 5000 ; TODO: a better way to tune these via the panel
+tune2	FiltTrivialLpParams 5000
 
 Instrument_BassSinLfo:
 	dc BassSinLfoInit-ChAlloc_InitInstruState
@@ -36,7 +36,7 @@ Instrument_BassSinLfo:
 	else
 	AdsrParamBlock 0.005,0.005,0.5,0.005
 	endif
-	FiltTrivialLpParamsLfo 1200,1000
+tune3	FiltTrivialLpParamsLfo 1200,1000
 
 Instrument_BassAdsrLfo:
 	dc BassAdsrLfoInit-ChAlloc_InitInstruState
@@ -46,7 +46,7 @@ Instrument_BassAdsrLfo:
 	FiltTrivialLpParamsLfo 500,3500
 	; NOTE: R phase >= main adsr R so that gets killed appropriately
 	;AdsrParamBlock 2.5,0.1,1.0,1.0
-	AdsrParamBlock 0.001,0.2,0.0,1.0
+tune4	AdsrParamBlock 0.001,0.2,0.0,1.0
 
 InstruBassAdsrIdx_FiltAdsr	equ	InstruParamIdx_End+FiltTrivialLpParamsLfoSize
 
@@ -61,7 +61,7 @@ Instrument_PulseBass:
 	else
 	AdsrParamBlock 0.03,0.00000001,1.0,1.0
 	endif
-	dc 0.1 ; base lfo duty cycle
+tune5	dc 0.1 ; base lfo duty cycle
 	dc 0.9 ; adsr amplitude
 
 InstruPulseBassIdx_FiltAdsr	equ	InstruParamIdx_End
@@ -74,6 +74,22 @@ AllInstruments:
 	dc Instrument_BassSinLfo
 	dc Instrument_BassAdsrLfo
 	dc Instrument_PulseBass
+
+; addresses of tunable parameters
+; these shall come with an accompanying manual with number mappings
+InstruTunables:
+	dc tune1	; 0: 1st instru adsr A
+	dc tune1+1	; 1: 1st instru adsr D
+	dc tune1+3	; 2: 1st instru adsr R
+	dc tune2	; 3: 1st instru filt cutoff
+	dc tune3	; 4: 2nd instru filt base
+	dc tune3+1	; 5: 2nd instru filt amplitude
+	dc tune4	; 6: 3rd instru filt adsr A
+	dc tune4+1	; 7: 3rd instru filt adsr D
+	dc tune4+3	; 8: 3rd instru filt adsr R
+	dc tune5	; 9: 4th instru dutycycle base
+	dc tune5+1	; a: 4th instru dutycycle amplitude
+
 
 ; CALLING CONVENTION
 ; Init:

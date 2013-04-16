@@ -50,7 +50,7 @@ enum Key {
 };
 
 // number of keys that play a note instead of controlling something
-#define NOTE_KEYS 6
+#define NOTE_KEYS 2
 
 // Required definitions for a Chameleon application
 /**********************************************************************/
@@ -75,6 +75,12 @@ static rtems_unsigned32 encoval;
 static int midichan_to_synth[MIDI_CHAN_MAP_SIZE];
 static int midichanedit;
 
+// pot to tunable mapping
+// these in InstruTunables array in instruparams.asm
+#define TUNABLES_SIZE 0xb
+static int pot_to_tunable[3];
+static int tunableedit;
+
 // This function is called if an unexpected error occurs
 static void Error(char *error) {
 	TRACE(error);
@@ -84,7 +90,7 @@ static void Error(char *error) {
 // Show a data word on the LCD display
 static void show_data(rtems_signed32 data) {
 	char str[9];
-	sprintf(str, "0x%06X", data);
+	sprintf(str, "%06X", data);
 	panel_out_lcd_print(panel, 1, 0, str);
 }
 
@@ -139,9 +145,21 @@ void initialize()
 static rtems_unsigned32 lowpass_pot(rtems_unsigned32 pot) {
 	static const float dt = 1.0 / 48000;
 	static const float pi = 3.14159;
+	static const float k = dt * 2 * pi;
 
 	float freq = (float)pot / 0xffffff * 16000.0;
-	float c = (dt * 2 * pi * freq) / (dt * 2 * pi * freq + 1);
+	float c = (k * freq) / (k * freq + 1);
+	return c * 0x7fffff;
+}
+
+static rtems_unsigned32 lowpass_dif(rtems_unsigned32 pot) {
+	static const float dt = 1.0 / 48000;
+	static const float pi = 3.14159;
+	static const float k = dt * 2 * pi;
+
+	float freq = (float)pot / 0xffffff * 16000.0;
+	float c = k / ((k * freq + 1) * (k * freq + 1));
+	c *= 1000; // max amplitude
 	return c * 0x7fffff;
 }
 
@@ -154,19 +172,23 @@ static rtems_unsigned32 adsr_time(rtems_unsigned32 pot) {
 }
 
 static void synth_note_off(int notenum, int midichan) {
-	int synthinstru = midichan_to_synth[midichan] - 1;
-	if (synthinstru != -1) {
-		DSP_write_cmd_data2(DSPP_VecHostCommandMidiKeyOff, notenum, synthinstru);
-		if (seqenabled)
-			seqevs += seq_add_event(seqtick, synthinstru, SEQ_EVTYPE_KEYOFF, notenum);
+	if (midichan >= 0 && midichan < MIDI_CHAN_MAP_SIZE) {
+		int synthinstru = midichan_to_synth[midichan] - 1;
+		if (synthinstru != -1) {
+			DSP_write_cmd_data2(DSPP_VecHostCommandMidiKeyOff, notenum, synthinstru);
+			if (seqenabled)
+				seqevs += seq_add_event(seqtick, synthinstru, SEQ_EVTYPE_KEYOFF, notenum);
+		}
 	}
 }
 static void synth_note_on(int notenum, int midichan, int velocity) {
-	int synthinstru = midichan_to_synth[midichan] - 1;
-	if (synthinstru != -1) {
-		DSP_write_cmd_data3(DSPP_VecHostCommandMidiKeyOn, notenum, synthinstru, velocity);
-		if (seqenabled)
-			seqevs += seq_add_event2(seqtick, synthinstru, SEQ_EVTYPE_KEYON, notenum, velocity);
+	if (midichan >= 0 && midichan < MIDI_CHAN_MAP_SIZE) {
+		int synthinstru = midichan_to_synth[midichan] - 1;
+		if (synthinstru != -1) {
+			DSP_write_cmd_data3(DSPP_VecHostCommandMidiKeyOn, notenum, synthinstru, velocity);
+			if (seqenabled)
+				seqevs += seq_add_event2(seqtick, synthinstru, SEQ_EVTYPE_KEYON, notenum, velocity);
+		}
 	}
 }
 
@@ -196,20 +218,63 @@ static void keydown(enum Key key) {
 		if (midichan_to_synth[midichanedit] == -1)
 			midichan_to_synth[midichanedit] = SYNTH_CHANS;
 		break;
+	case KEY_PAGE_UP:
+		tunableedit = tunableedit == 2 ? 0 : tunableedit + 1;
+		break;
+	case KEY_PAGE_DOWN:
+		tunableedit = tunableedit == 0 ? 2 : tunableedit - 1;
+		break;
+	case KEY_PARAM_UP:
+		pot_to_tunable[tunableedit]++;
+		if (pot_to_tunable[tunableedit] == TUNABLES_SIZE+1)
+			pot_to_tunable[tunableedit] = 0;
+		break;
+	case KEY_PARAM_DOWN:
+		pot_to_tunable[tunableedit]--;
+		if (pot_to_tunable[tunableedit] == -1)
+			pot_to_tunable[tunableedit] = TUNABLES_SIZE;
+		break;
 	default:
-		synth_note_on((int)key + 12 * encoval, 0, 10);
+		synth_note_on((int)key + NOTE_KEYS * encoval, 0, 10);
 	}
 }
 static void keyup(enum Key key) {
 	if (key < NOTE_KEYS)
-		synth_note_off((int)key + 12 * encoval, 0);
+		synth_note_off((int)key + NOTE_KEYS * encoval, 0);
+}
+
+static rtems_signed32	volume_table[128];
+static rtems_signed32	linear_table[128];
+
+void update_tunable(int i, int potvalue) {
+	int tunable;
+	rtems_unsigned32 sendval;
+
+	tunable = pot_to_tunable[i];
+	if (tunable != 0) {
+		tunable -= 1;
+		switch (tunable) {
+			case 0x0:
+			case 0x1:
+			case 0x2: sendval = adsr_time(linear_table[potvalue]); break;
+			case 0x3: sendval = lowpass_pot(volume_table[potvalue]); break;
+			case 0x4: sendval = lowpass_pot(volume_table[potvalue]); break;
+			case 0x5: sendval = lowpass_dif(volume_table[potvalue]); break;
+			case 0x6:
+			case 0x7:
+			case 0x8: sendval = adsr_time(linear_table[potvalue]); break;
+			case 0x9:
+			case 0xa: sendval = linear_table[potvalue]; break;
+			default: Error("Bad tunable"); break;
+		}
+
+		DSP_write_cmd_data2(DSPP_VecHostCommandUpdateTunable, tunable, sendval);
+	}
 }
 
 // Panel task: interaction with the Chameleon panel
 static rtems_task panel_task(rtems_task_argument argument)
 {
-	static rtems_signed32	volume_table[128];
-	static rtems_signed32	linear_table[128];
 	rtems_unsigned32	key_bits, key_bits_prev;
 	rtems_unsigned8 	potentiometer;
 	rtems_unsigned8 	encoder;
@@ -251,19 +316,15 @@ static rtems_task panel_task(rtems_task_argument argument)
 			{
 			case PANEL01_POT_VOLUME:
 				DSP_write_cmd_data(DSPP_VecHostCommandUpdateVolume, volume_table[value]);
-				panel_out_lcd_print(panel, 0, 0, "Volume:         ");
 				break;
 			case PANEL01_POT_CTRL1:
-				DSP_write_cmd_data(DSPP_VecHostCommandUpdateCTRL1, lowpass_pot(volume_table[value]));
-				panel_out_lcd_print(panel, 0, 0, "Ctrl1:          ");
+				update_tunable(0, value);
 				break;
 			case PANEL01_POT_CTRL2:
-				DSP_write_cmd_data(DSPP_VecHostCommandUpdateCTRL2, adsr_time(linear_table[value]));
-				panel_out_lcd_print(panel, 0, 0, "Ctrl2:          ");
+				update_tunable(1, value);
 				break;
 			case PANEL01_POT_CTRL3:
-				DSP_write_cmd_data(DSPP_VecHostCommandUpdateCTRL3, adsr_time(linear_table[value]));
-				panel_out_lcd_print(panel, 0, 0, "Ctrl3:          ");
+				update_tunable(2, value);
 				break;
 			default:
 				break;
@@ -412,7 +473,7 @@ static rtems_task seq_task(rtems_task_argument ignored) {
 			ev = ev->next;
 			n++;
 		}
-		sprintf(text, "%1x %1x %02x  01234567", seqtick & 15, n, seqevs);
+		sprintf(text, "%xA%xB%xC%x 01234567", seqtick & 15, pot_to_tunable[0], pot_to_tunable[1], pot_to_tunable[2]);
 		panel_out_lcd_print(panel, 0, 0, text);
 		sprintf(text, "%d%d%d%d%d%d%d%d",
 			midichan_to_synth[0],
@@ -431,6 +492,7 @@ static rtems_task seq_task(rtems_task_argument ignored) {
 		seqtick++;
 		rtems_task_wake_after(period/2);
 		panel_out_led(panel, seqenabled ? PANEL01_LED_SHIFT : 0);
+		panel_out_lcd_print(panel, 0, 2 + 2 * tunableedit, " ");
 		panel_out_lcd_print(panel, 1, 8 + midichanedit, " ");
 		rtems_task_wake_after(period/2);
 	}

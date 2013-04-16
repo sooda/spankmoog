@@ -1,33 +1,23 @@
 ;*******************************************
 ;INTERRUPT ROUTINES
 ;*******************************************
+
 UpdateVolume:
 	BRCLR	#HSR_HRDF,X:<<HSR,*	; Make sure that data is available
 	MOVEP	X:<<HRX,r7		; Read the data to r7
 	MOVE	r7,Y:MasterVolume	; Write the data to memory
 	MOVEP	r7,X:<<HTX		; Write the read value back to the MCU
 	RTI				; Return from interrupt
-UpdateCTRL1:
+
+UpdateTunable:
 	BRCLR	#HSR_HRDF,X:<<HSR,*
 	MOVEP	X:<<HRX,r7
-	MOVE	r7,Y:CTRL1Value
-	move	r7,y:ankka ; filt cutoff
-	MOVEP	r7,X:<<HTX
-	RTI
-UpdateCTRL2:
+	move	Y:(r7+InstruTunables),r7
 	BRCLR	#HSR_HRDF,X:<<HSR,*
-	MOVEP	X:<<HRX,r7
-	MOVE	r7,Y:CTRL2Value
-	move	r7,Y:vankka ; adsr A
-	MOVEP	r7,X:<<HTX
+	MOVEP	X:<<HRX,n7
+	move	n7,Y:(r7)
 	RTI
-UpdateCTRL3:
-	BRCLR	#HSR_HRDF,X:<<HSR,*
-	MOVEP	X:<<HRX,r7
-	MOVE	r7,Y:CTRL3Value
-	move	r7,Y:(vankka+3) ; adsr R
-	MOVEP	r7,X:<<HTX
-	RTI
+
 KeyEvent:
 	BRCLR	#HSR_HRDF,X:<<HSR,*
 	MOVEP	X:<<HRX,r7
@@ -41,6 +31,7 @@ EncoderUp:
 	move r7,Y:PanelKeys_NoteOffset
 
 	RTI
+
 EncoderDown:
 	;Write your encoder down handler here
 
@@ -60,6 +51,7 @@ MidiKeyOn:
 	;BRCLR	#HSR_HRDF,X:<<HSR,*
 	;MOVEP	X:<<HRX,r7
 	RTI
+
 MidiKeyOff:
 	BRCLR	#HSR_HRDF,X:<<HSR,*
 	MOVEP	X:<<HRX,r7
