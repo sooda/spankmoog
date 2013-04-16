@@ -87,9 +87,9 @@ BassAdsrLfoFilt:
 	; TODO: do something more clever with this
 	move a,r6
 	move r4,n4
+	lua (r0+BassAdsrStateIdx_Adsr),r2
 	move r0,n0
 
-	lua (r0+BassAdsrStateIdx_Adsr),r2
 	lua (r4+InstruBassAdsrIdx_FiltAdsr),r0
 	move r2,r4
 	move #>0,r2 ; don't kill the note
@@ -127,22 +127,22 @@ PulseBassOsc:
 	; "push" and "pop" the state to registers temporarily
 	; TODO: do something more clever with this
 	move r4,n4
+	lua (r0+PulseBassStateIdx_Adsr),r2
 	move r0,n0
 
-	lua (r0+PulseBassStateIdx_Adsr),r2
 	lua (r4+InstruPulseBassIdx_FiltAdsr),r0
 	move r2,r4
 	move #>0,r2 ; don't kill the note
 	bsr AdsrEval
 	move r3,Y:OutputHax
 
-	move n0,r0
-	move n4,r4
 
+	move n4,r4
 	move r3,x1
 	move Y:(r4+InstruPulseBassIdx_DutyBase),a
 	move Y:(r4+InstruPulseBassIdx_DutyAmpl),x0
 	mac x0,x1,a
+	move n0,r0
 	move a,X:(r1+ChDataIdx_OscState+PlsDpwIdx_Duty)
 
 	bra OscDpwplsEval

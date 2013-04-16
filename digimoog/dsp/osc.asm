@@ -99,8 +99,8 @@ OscDpwsawEval:
 	move X:(r0+DpwOscIdx_Val),x1
 	move a,X:(r0+DpwOscIdx_Val)
 	sub x1,a	; dsq = val^2 - old^2
-	move a,x0
 	move X:(r0+DpwOscIdx_Coef),x1
+	move a,x0
 	mpy x0,x1,a	; out = c * dsq
 	asl #11,a,a	; fixpt coef
 	rts

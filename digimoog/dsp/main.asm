@@ -198,9 +198,9 @@ Start:
 
 	; timer prescale load: just in case, reset the source to clk/2
 	move #>0,x0
-	move x0,X:<<TPLR
+	move x0,X:TPLR
 	; load reg, start counting from here
-	move x0,X:<<TLR0
+	move x0,X:TLR0
 
 	move x0,Y:PanicState
 
@@ -215,11 +215,11 @@ Start:
 MainLoop:
 	; reset the counter control reg first
 	move #>0,x0
-	move x0,X:<<TCSR0
+	move x0,X:TCSR0
 	; TRM bit (restart mode) cleared -> free running counter
 	; tc0|tc1: mode 3 = event counter (just count clock cycles)
 	move #>(TCSR_TC0|TCSR_TC1|TCSR_TE),x0
-	move x0,X:<<TCSR0 ; mode 3, enable
+	move x0,X:TCSR0 ; mode 3, enable
 	; it seems that we need these nops first to correctly count the work cycles
 	; (could as well just add 4 to the counter when displaying it)
 	nop
@@ -246,10 +246,8 @@ MainLoop:
 		; (don't actually kill, but turn up the key off bit)
 		; this starts the decay phase, and the ADSR kills this channel after having decayed to silence
 
-		move #>ChannelData,a
+		move #>ChannelData,r1
 		do #NumChannels,ChannelKillLoopEnd
-			move a1,r1
-
 			move X:(r1+ChDataIdx_InstruIdx),b
 			cmp x1,b
 			bne NotTheNoteToKill
@@ -260,17 +258,17 @@ MainLoop:
 				move b1,X:(r1+ChDataIdx_Note)
 				enddo
 			NotTheNoteToKill:
-			add #>ChannelCapacity,a
+			nop ; enddo too close
+			lua (r1+ChannelCapacity),r1
 		ChannelKillLoopEnd:
 	NoNoteWentUp:
 
 	brclr #0,Y:PanicState,PanicLoopEnd
-		move #>ChannelData,a
+		move #>ChannelData,r1
 		do #NumChannels,PanicLoopEnd
-			move a1,r1
 			bset #ChNoteDeadBit,b1
 			move b1,X:(r1+ChDataIdx_Note)
-			add #>ChannelCapacity,a
+			lua (r1+ChannelCapacity),r1
 	PanicLoopEnd:
 	bclr #0,Y:PanicState ; not needed anymore (don't bother checking if it was on, just clear)
 	; check if a key just went down
@@ -314,7 +312,7 @@ MainLoop:
 				enddo ; too near the loop end
 				nop
 			NotFreeChannel:
-			lea (r1+ChannelCapacity),r1
+			lua (r1+ChannelCapacity),r1
 		ChannelAllocationLoopEnd:
 	NoNoteWentDown:
 
@@ -381,8 +379,8 @@ MainLoop:
 			move r3,x1 ; TODO: return adsr value in x1?
 			mpy x0,x1,a ; a *= adsr
 
-			move a,x0
 			move X:(r1+ChDataIdx_Velocity),x1
+			move a,x0
 			mpy x0,x1,a
 
 			; restore b's value and sum the new sample from a (though scaled by 1/NumChannels)
