@@ -40,3 +40,40 @@ FiltTrivialLpEval:
 	nop		; stall :(
 	move a,X:(r0+FiltTrivialLpStateIdx_Val)
 	rts
+
+FiltTrivialHpParamsIdx_Coef	equ	0
+
+FiltTrivialHpStateIdx_Prevdiff2	equ	0
+FiltTrivialHpStateIdx_Coef	equ	1
+FiltTrivialHpState_Size		equ	2
+
+; args: workspace at X:(r0), params at Y:(r5)
+; work regs: x1
+FiltTrivialHpInit:
+	move Y:(r5+FiltTrivialHpParamsIdx_Coef),x1
+	move x1,X:(r0+FiltTrivialHpStateIdx_Coef)
+	move #>0,x1 ; just assume something. will this work or give nasty transients?
+	move x1,X:(r0+FiltTrivialHpStateIdx_Prevdiff2)
+	rts
+
+; args: workspace at X:(r0), input at a
+; output: a
+; work regs: a, b, x0, x1
+
+; y1 = g * (y0 + x1 - x0)
+;    = g * y0 + a * (x1 - x0)
+;    = g * (x1 + (y0 - x0))
+;    = 2 * g * (x1/2 + (y0 - x0) / 2)
+; store: (y0-x0)/2
+FiltTrivialHpEval:
+	move X:(r0+FiltTrivialHpStateIdx_Prevdiff2),b ; b = (y0-x0) / 2
+	move X:(r0+FiltTrivialHpStateIdx_Coef),x0
+	asr a ; x1 /= 2
+	add a,b ; b = (x1/2 + (y0-x0)/2)
+	move b,x1
+	mpy x0,x1,b ; b = g * (x1 / 2 + (y0-x0) / 2) = y1 / 2
+	sub b,a ; a = x1 / 2 - y1 / 2 = (x1 - y1) / 2
+	neg a ; a = (y1 - x1) / 2
+	move a,X:(r0+FiltTrivialHpStateIdx_Prevdiff2) ; b = new (y0-x0) / 2
+	asl #1,b,a ; output
+	rts

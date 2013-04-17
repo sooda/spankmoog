@@ -152,10 +152,18 @@ PulseBassFilt:
 
 
 NoiseInstInit:
+	lua (r1+ChDataIdx_FiltState),r0
+	lua (r4+InstruNoiseIdx_Hp),r5
+	bsr FiltTrivialHpInit
+
+	lua (r1+ChDataIdx_OscState),r0
 	bra NoiseInit
 
 NoiseInstOsc:
 	bra NoiseEval
 
 NoiseInstFilt:
-	rts
+	; LFO-like effect: simply replace the coefficient with probably newly updated value from the panel
+	move Y:(r4+InstruNoiseIdx_Hp+FiltTrivialHpParamsIdx_Coef),x1
+	move x1,X:(r0+FiltTrivialHpStateIdx_Coef)
+	bra FiltTrivialHpEval

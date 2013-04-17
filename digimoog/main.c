@@ -77,7 +77,7 @@ static int midichanedit;
 
 // pot to tunable mapping
 // these in InstruTunables array in instruparams.asm
-#define TUNABLES_SIZE 0xb
+#define TUNABLES_SIZE 0xc
 static int pot_to_tunable[3];
 static int tunableedit;
 
@@ -160,6 +160,16 @@ static rtems_unsigned32 lowpass_dif(rtems_unsigned32 pot) {
 	float freq = (float)pot / 0xffffff * 16000.0;
 	float c = k / ((k * freq + 1) * (k * freq + 1));
 	c *= 1000; // max amplitude
+	return c * 0x7fffff;
+}
+
+static rtems_unsigned32 hihpass_pot(rtems_unsigned32 pot) {
+	static const float dt = 1.0 / 48000;
+	static const float pi = 3.14159;
+	static const float k = dt * 2 * pi;
+
+	float freq = (float)pot / 0xffffff * 16000.0;
+	float c = 1.0 / (k * freq + 1);
 	return c * 0x7fffff;
 }
 
@@ -265,6 +275,7 @@ void update_tunable(int i, int potvalue) {
 			case 0x8: sendval = adsr_time(linear_table[potvalue]); break;
 			case 0x9:
 			case 0xa: sendval = linear_table[potvalue]; break;
+			case 0xb: sendval = hihpass_pot(volume_table[potvalue]); break;
 			default: Error("Bad tunable"); break;
 		}
 

@@ -20,3 +20,14 @@ FiltTrivialLpParamsSize equ 1
 FiltTrivialLpParamsLfoSize equ 2
 
 FiltTrivialLpStateSize equ 2
+
+
+; magic coefficient to multiply with
+FiltTrivialHpParams	macro	fc
+	dc	(1/(1+FiltTrivLpK*fc)) ; TODO RENAME
+	endm
+
+FiltTrivialHpParamsSize equ 1
+
+FiltTrivialHpStateSize equ 2
+

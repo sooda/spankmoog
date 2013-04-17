@@ -69,15 +69,18 @@ InstruPulseBassIdx_FiltAdsr	equ	InstruParamIdx_End
 InstruPulseBassIdx_DutyBase	equ	InstruParamIdx_End+AdsrParamsSize
 InstruPulseBassIdx_DutyAmpl	equ	InstruParamIdx_End+AdsrParamsSize+1
 
+InstruNoiseIdx_Hp	equ	InstruParamIdx_End
+
 Instrument_Noise:
 	dc NoiseInstInit-ChAlloc_InitInstruState
 	dc NoiseInstOsc-ChEval_OscEvalBranch
 	dc NoiseInstFilt-ChEval_FiltEvalBranch
 	if !simulator
-	AdsrParamBlock 0.1,0.1,0.5,0.1
+	AdsrParamBlock 0.0001,0.3,0.0,0.3
 	else
 	AdsrParamBlock 0.005,0.005,0.5,0.005
 	endif
+tune6	FiltTrivialHpParams 5000
 
 AllInstruments:
 	dc Instrument_Bass
@@ -100,6 +103,7 @@ InstruTunables:
 	dc tune4+3	; 8: 3rd instru filt adsr R
 	dc tune5	; 9: 4th instru dutycycle base
 	dc tune5+1	; a: 4th instru dutycycle amplitude
+	dc tune6	; b: 5th instru filt cutoff
 
 
 ; CALLING CONVENTION
