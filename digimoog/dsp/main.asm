@@ -61,15 +61,6 @@ ChannelCapacity  equ 63
 OscStateCapacity equ 25 ; FIXME: just a constant sized block, hope that no one is bigger
 NumChannels      equ 10
 
-; Channel data format:
-; [0]                      note number (if highest bit is set, the channel is not alive)
-; [1]                      oscillator eval function address
-; [2]                      filter eval function address
-; [3]                      filter state start address
-; [4 and forward]          adsr state
-; [4 + AdsrStateSize]      instrument pointer
-; [4 + AdsrStateSize + 1]  oscillator state
-; [after osc state]        filter state (this is where [3] points to)
 ChDataIdx_Note          equ 0
 ChDataIdx_FiltStateAddr equ 1
 ChDataIdx_AdsrState     equ 2
