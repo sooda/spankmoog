@@ -187,12 +187,11 @@ Start:
 	; initialize all channels as dead
 
 	move #>(1<<ChNoteDeadBit),x0
-	move #>ChannelData,a
+	move #>ChannelData,r1
 
 	do #NumChannels,DeadChannelInitLoopEnd
-		move a1,r1
 		move x0,X:(r1+ChDataIdx_Note)
-		add #>ChannelCapacity,a
+		lua (r1+ChannelCapacity),r1
 	DeadChannelInitLoopEnd:
 
 	; no note has just went up or down
@@ -241,13 +240,14 @@ MainLoop:
 	;asl #1,a,a
 	;move a,X:<<HTX
 
+	move #>ChDataIdx_Note,n1 ; NOTE: used in the two following loops
+
 	; check if a key just went up
 
 	brset #23,Y:NoteThatWentUp,NoNoteWentUp
 		move Y:NoteThatWentUp,x0
 		move Y:InstrumentThatWentUp,x1
-		move #>$ffffff,y0
-		move y0,Y:NoteThatWentUp
+		bset #23,Y:(NoteThatWentUp)
 
 		; find and kill the channel
 		; (don't actually kill, but turn up the key off bit)
@@ -261,8 +261,7 @@ MainLoop:
 			move X:(r1+ChDataIdx_Note),b
 			cmp x0,b
 			bne NotTheNoteToKill
-				bset #ChNoteKeyoffBit,b1
-				move b1,X:(r1+ChDataIdx_Note)
+				bset #ChNoteKeyoffBit,X:(r1+n1)
 				enddo
 			NotTheNoteToKill:
 			nop ; enddo too close
@@ -273,17 +272,14 @@ MainLoop:
 	brclr #0,Y:PanicState,PanicLoopEnd
 		move #>ChannelData,r1
 		do #NumChannels,PanicLoopEnd
-			bset #ChNoteDeadBit,b1
-			move b1,X:(r1+ChDataIdx_Note)
-			lua (r1+ChannelCapacity),r1
+			bset #ChNoteDeadBit,X:(r1+n1)
 	PanicLoopEnd:
 	bclr #0,Y:PanicState ; not needed anymore (don't bother checking if it was on, just clear)
 	; check if a key just went down
 
 	brset #23,Y:NoteThatWentDown,NoNoteWentDown
 		move Y:NoteThatWentDown,n2
-		move #>$ffffff,y0
-		move y0,Y:NoteThatWentDown
+		bset #23,Y:(NoteThatWentDown)
 
 		; find a free channel and initialize there
 		; NOTE: if no free channels are available, the new note is just ignored.
