@@ -50,6 +50,7 @@ DT	equ	1.0/RATE
 
 	include 'oscinc.asm'
 	include 'filtinc.asm'
+	include 'multipoleinc.asm'
 	include 'adsrinc.asm'
 	include 'sininc.asm'
 
@@ -212,9 +213,9 @@ Start:
 
 	; simulate just one keypress
 	if simulator
-		move #>100,x0
+		move #>63,x0 ; 440 hz
 		move x0,Y:NoteThatWentDown
-		move #>$7fff03,x0
+		move #>$7fff05,x0
 		move x0,Y:InstrumentThatWentDown
 	endif
 
@@ -431,6 +432,7 @@ MainLoop:
 	include 'adsr.asm'
 	include 'osc.asm'
 	include 'filt.asm'
+	include 'multipole.asm'
 	include 'sin.asm'
 	include 'isr.asm'
 	end	Start

@@ -18,6 +18,27 @@ BassFilt:
 	move x1,X:(r0+FiltTrivialLpStateIdx_Coef)
 	bra FiltTrivialLpEval
 
+Bass4Init:
+	lua (r1+ChDataIdx_FiltState),r0
+	lua (r4+InstruParamIdx_End),r5
+	bsr Filt4Init
+
+	lua (r1+ChDataIdx_OscState),r0
+	move n2,r4
+	bsr OscDpwsawInit
+
+	rts
+
+Bass4Osc:
+	bra OscDpwsawEval
+
+Bass4Filt:
+	; LFO-like effect: simply replace the coefficient with probably newly updated value from the panel
+	move Y:(r4+InstruParamIdx_End+Filt4ParamsIdx_Coef),x1 ; TODO: can use Instrument_Bass4 etc. in all of these, as we know what instrument we're dealing with
+	move x1,X:(r0+Filt4StateIdx_Coef)
+	lua (r4+InstruParamIdx_End),r5
+	bra Filt4Eval
+
 ; indices inside the filter state
 BassLfoStateIdx_LpFilt equ 0
 BassLfoStateIdx_Lfo    equ FiltTrivialLpStateSize

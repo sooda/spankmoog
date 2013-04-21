@@ -16,6 +16,7 @@ DSPDEPENDS := \
 	osc.asm oscinc.asm \
 	dpw_coefs.asm saw_ticks.asm \
 	filt.asm filtinc.asm \
+	multipole.asm multipoleinc.asm \
 	sin_table.asm sin.asm \
 	isr.asm
 

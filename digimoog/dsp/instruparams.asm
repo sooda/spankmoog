@@ -82,12 +82,25 @@ Instrument_Noise:
 	endif
 tune6	FiltTrivialHpParams 5000
 
+Instrument_Bass4:
+	dc Bass4Init-ChAlloc_InitInstruState
+	dc Bass4Osc-ChEval_OscEvalBranch
+	dc Bass4Filt-ChEval_FiltEvalBranch
+	if !simulator
+	AdsrParamBlock 0.1,0.1,0.5,0.1
+	else
+	AdsrParamBlock 0.005,0.005,0.5,0.005
+	endif
+filt4p	Filt4LP4Coefs
+tune7	Filt4CoefResComp 500.0*2*PI/RATE,0,0
+
 AllInstruments:
 	dc Instrument_Bass
 	dc Instrument_BassSinLfo
 	dc Instrument_BassAdsrLfo
 	dc Instrument_PulseBass
 	dc Instrument_Noise
+	dc Instrument_Bass4
 
 ; addresses of tunable parameters
 ; these shall come with an accompanying manual with number mappings
@@ -104,6 +117,7 @@ InstruTunables:
 	dc tune5	; 9: 4th instru dutycycle base
 	dc tune5+1	; a: 4th instru dutycycle amplitude
 	dc tune6	; b: 5th instru filt cutoff
+	dc tune7	; c: 6th instru filt cutoff
 
 
 ; CALLING CONVENTION
