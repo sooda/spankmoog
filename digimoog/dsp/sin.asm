@@ -64,18 +64,12 @@ LFOSinEval:
 
 	move x0,b                        ; b = f
 	add y0,b                         ; b = f+c
-	cmp #1.0,b
-	ble _noMinc ; TODO: can use brclr instead of cmp and ble?
-		; addition resulted in bigger than 1.0
-		add #-1.0,b                     ; b = f+c - 1.0
-		move b,X:(r2+LFOSinStateIdx_f)
-
-		move X:(r2+LFOSinStateIdx_M),b0 ; ..
-		inc b                           ; ..
-		move b0,X:(r2+LFOSinStateIdx_M) ; M++
-		bra _end
-
-_noMinc:
+	move X:(r2+LFOSinStateIdx_M),y0
+	move b1,x0
+	and #>$7fffff,b                  ; if f+c > 1.0, this wraps it back to f+c - 1.0
 	move b,X:(r2+LFOSinStateIdx_f)
-_end:
+	move x0,b
+	lsr #22,b                        ; now, if f+c went >1.0, b1 will contain 1 (nb. not 1.0); otherwise 0
+	add y0,b
+	move b1,X:(r2+LFOSinStateIdx_M)
 	rts
