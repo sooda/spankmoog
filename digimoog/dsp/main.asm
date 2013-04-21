@@ -305,10 +305,11 @@ MainLoop:
 				move Y:(r4+AllInstruments),r4
 				move r4,X:(r1+ChDataIdx_InstruPtr)
 
-				lua (r1+ChDataIdx_OscState+OscStateCapacity),r0 ; FIXME: filtstate renders this useless
-				move r0,X:(r1+ChDataIdx_FiltStateAddr)
-
 				move Y:(r4+InstruParamIdx_InitFunc),r0
+
+				lua (r1+ChDataIdx_OscState+OscStateCapacity),r2 ; FIXME: filtstate renders this useless
+				move r2,X:(r1+ChDataIdx_FiltStateAddr)
+
 				ChAlloc_InitInstruState:
 				bsr r0
 
@@ -328,29 +329,27 @@ MainLoop:
 	do #NumChannels,ChannelEvaluateLoopEnd
 		move X:(r1+ChDataIdx_Note),y0
 		brset #ChNoteDeadBit,y0,DeadChannel
+			; TODO: maybe read this and r1 always before calling
+			; those so they don't need to backup these. it's just a
+			; couple of cycles.
+			move X:(r1+ChDataIdx_InstruPtr),r4
+
 			; save value of b so far
 			; TODO: come up with a nicer way. This is slow.
 			move b0,X:(AccumBackup)
 			move b1,X:(AccumBackup+1)
 			move b2,X:(AccumBackup+2)
-
-			; TODO: maybe read this and r1 always before calling
-			; those so they don't need to backup these. it's just a
-			; couple of cycles.
-			move X:(r1+ChDataIdx_InstruPtr),r4
 		
 			; evaluate oscillator
-			lua (r1+ChDataIdx_OscState),r0
 			move Y:(r4+InstruParamIdx_OscFunc),r2
-			nop
+			lua (r1+ChDataIdx_OscState),r0
 			ChEval_OscEvalBranch:
 			bsr r2
 			SimulatorMove a,OutputOsc
 
 			; evaluate filter
-			move X:(r1+ChDataIdx_FiltStateAddr),r0
 			move Y:(r4+InstruParamIdx_FiltFunc),r2
-			nop
+			move X:(r1+ChDataIdx_FiltStateAddr),r0
 			ChEval_FiltEvalBranch:
 			bsr r2
 			SimulatorMove a,OutputMiddle

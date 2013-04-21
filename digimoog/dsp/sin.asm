@@ -57,12 +57,12 @@ LFOSinEval:
 	move x0,b                       ; b = T[M % N]
 	move X:(r2+LFOSinStateIdx_f),x0 ; x0 = f
 	mac x0,y0,b                     ; b  = T[M % N] + f*(T[(M+1) % N] - T[M % N])  (this is the interpolated result)
+	move X:(r2+LFOSinStateIdx_c),y0 ; y0 = c
 	move b,x1
 
 	; advance the state
 
 	move x0,b                        ; b = f
-	move X:(r2+LFOSinStateIdx_c),y0  ; y0 = c
 	add y0,b                         ; b = f+c
 	cmp #1.0,b
 	ble _noMinc ; TODO: can use brclr instead of cmp and ble?

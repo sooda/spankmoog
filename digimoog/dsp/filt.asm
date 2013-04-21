@@ -67,9 +67,9 @@ FiltTrivialHpInit:
 ; store: (y0-x0)/2
 FiltTrivialHpEval:
 	move X:(r0+FiltTrivialHpStateIdx_Prevdiff2),b ; b = (y0-x0) / 2
-	move X:(r0+FiltTrivialHpStateIdx_Coef),x0
 	asr a ; x1 /= 2
 	add a,b ; b = (x1/2 + (y0-x0)/2)
+	move X:(r0+FiltTrivialHpStateIdx_Coef),x0
 	move b,x1
 	mpy x0,x1,b ; b = g * (x1 / 2 + (y0-x0) / 2) = y1 / 2
 	sub b,a ; a = x1 / 2 - y1 / 2 = (x1 - y1) / 2
