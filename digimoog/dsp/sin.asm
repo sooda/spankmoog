@@ -69,7 +69,8 @@ LFOSinEval:
 	and #>$7fffff,b                  ; if f+c > 1.0, this wraps it back to f+c - 1.0
 	move b,X:(r2+LFOSinStateIdx_f)
 	move x0,b
-	lsr #22,b                        ; now, if f+c went >1.0, b1 will contain 1 (nb. not 1.0); otherwise 0
+	lsr #23,b                        ; now, if f+c went >1.0, b1 will contain 1 (nb. not 1.0); otherwise 0
 	add y0,b
 	move b1,X:(r2+LFOSinStateIdx_M)
+
 	rts
