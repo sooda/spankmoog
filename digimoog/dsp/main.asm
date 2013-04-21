@@ -106,6 +106,9 @@ PanelKeys_NoteOffset:
 	dc 0
 
 ;For debug and simulation
+
+	if simulator
+
 OutputL:
 	ds	1
 OutputR:
@@ -116,9 +119,22 @@ OutputAdsr:
 	ds 1
 OutputOsc:
 	ds 1
+OutputHax
+	ds 1
+
+	endif
+
+	if simulator
+SimulatorMove macro Reg,YDst
+	move Reg,Y:(YDst)
+	endm
+	else
+SimulatorMove macro Reg,YDst
+	endm
+	endif
+
 PanicState:
 	ds 1
-OutputHax ds 1
 
 	include 'instruparams.asm'
 	include 'dpw_coefs.asm'
@@ -333,7 +349,7 @@ MainLoop:
 			nop
 			ChEval_OscEvalBranch:
 			bsr r2
-			move a,Y:OutputOsc
+			SimulatorMove a,OutputOsc
 
 			; evaluate filter
 			move X:(r1+ChDataIdx_FiltStateAddr),r0
@@ -341,7 +357,7 @@ MainLoop:
 			nop
 			ChEval_FiltEvalBranch:
 			bsr r2
-			move a,Y:OutputMiddle
+			SimulatorMove a,OutputMiddle
 
 			; save a, as it's used in adsr
 			move a0,X:(AccumBackup2)
@@ -353,7 +369,7 @@ MainLoop:
 			lua (r1+ChDataIdx_AdsrState),r4
 			move X:(r1+ChDataIdx_Note),r2
 			bsr AdsrEval
-			move r3,Y:OutputAdsr
+			SimulatorMove r3,OutputAdsr
 
 			move X:(AccumBackup2),a0
 			move X:(AccumBackup2+1),a1
@@ -395,7 +411,7 @@ MainLoop:
 
 	;Output routines for left Ch
 	MOVE	Y:MasterVolume,X0		; Current volume value from memory to X0
-	MOVE	Y0,Y:OutputL			; Move the output value to memory for simulator use
+	SimulatorMove Y0,OutputL		; Move the output value to memory for simulator use
 	MPYR	X0,Y0,B				; Multiply the current output sample with the current volume value
 	NOP
 	if !simulator
@@ -405,7 +421,7 @@ MainLoop:
 	
 	;Output routines for right Ch
 	MOVE	Y:MasterVolume,X1		; Current volume value from memory to X0
-	MOVE	Y0,Y:OutputR			; Move the output value from Y1 to memory for simulator use
+	SimulatorMove Y0,OutputR		; Move the output value from Y1 to memory for simulator use
 	MPYR	X1,Y0,B				; Scale the input sample according to the volume curve
 	NOP
 	if !simulator

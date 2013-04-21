@@ -134,7 +134,7 @@ PulseBassOsc:
 	move r2,r4
 	move #>0,r2 ; don't kill the note
 	bsr AdsrEval
-	move r3,Y:OutputHax
+	SimulatorMove r3,OutputHax
 
 
 	move n4,r4
