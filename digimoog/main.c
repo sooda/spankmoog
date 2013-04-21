@@ -32,6 +32,12 @@
 
 #include "seq.h"
 
+
+#define RATE 48000
+#define DT (1.0 / RATE)
+#define PI 3.14159265
+#define FILT_K (DT * 2 * PI)
+
 enum Key {
 	KEY_VALUE_DOWN,
 	KEY_PARAM_DOWN,
@@ -141,43 +147,28 @@ void initialize()
 
     panel_out_lcd_print(panel, 0, 0, "digimoog");
 }
-
 static rtems_unsigned32 lowpass_pot(rtems_unsigned32 pot) {
-	static const float dt = 1.0 / 48000;
-	static const float pi = 3.14159;
-	static const float k = dt * 2 * pi;
-
 	float freq = (float)pot / 0xffffff * 16000.0;
-	float c = (k * freq) / (k * freq + 1);
+	float c = (FILT_K * freq) / (FILT_K * freq + 1);
 	return c * 0x7fffff;
 }
 
 static rtems_unsigned32 lowpass_dif(rtems_unsigned32 pot) {
-	static const float dt = 1.0 / 48000;
-	static const float pi = 3.14159;
-	static const float k = dt * 2 * pi;
-
 	float freq = (float)pot / 0xffffff * 16000.0;
-	float c = k / ((k * freq + 1) * (k * freq + 1));
+	float c = FILT_K / ((FILT_K * freq + 1) * (FILT_K * freq + 1));
 	c *= 1000; // max amplitude
 	return c * 0x7fffff;
 }
 
 static rtems_unsigned32 hihpass_pot(rtems_unsigned32 pot) {
-	static const float dt = 1.0 / 48000;
-	static const float pi = 3.14159;
-	static const float k = dt * 2 * pi;
-
 	float freq = (float)pot / 0xffffff * 16000.0;
-	float c = 1.0 / (k * freq + 1);
+	float c = 1.0 / (FILT_K * freq + 1);
 	return c * 0x7fffff;
 }
 
 static rtems_unsigned32 adsr_time(rtems_unsigned32 pot) {
-	static const float rate = 48000;
-
 	float time_secs = (float)pot / 0xffffff * 0.5;
-	float c = 1 - exp(-1.0 / (time_secs * rate));
+	float c = 1 - exp(-1.0 / (time_secs * RATE));
 	return c * 0x7fffff;
 }
 
