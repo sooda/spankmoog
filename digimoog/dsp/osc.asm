@@ -81,11 +81,8 @@ OscTrivialsawEval:
 	move X:(r0+SawOscIdx_Val),a
 	move X:(r0+SawOscIdx_Tick),x0
 	add x0,a
-	cmp #>1.0,a
-	ble _notovf
-		add #>-1.0,a ; "modulo" 1, wrap to near -1
-		add #>-1.0,a
-_notovf:
+	asl #8,a,a ; sneaky! 1+x -> -1+x if x >= 0
+	asr #8,a,a ; (copy the highest bit and sign-extend back)
 	move a,X:(r0+SawOscIdx_Val)
 	rts
 
@@ -108,7 +105,7 @@ OscDpwsawEval:
 ; params: X:r0 = state pointer
 ; work regs: x0, a, b
 ; output in: a (see value range docs above in init)
-; TODO: live duty cycle changes? get value of first, add dc, put to second val
+; TODO: unnecessary, remove?
 OscTrivialplsEval:
 	bsr OscTrivialsawEval
 	move a,b
@@ -127,31 +124,27 @@ _ovf:	add #>1.0,a	; fix <-1 condition
 ; output in: a (see value range docs above in init)
 ; NOTE: ugly copypasta from above, PlsOsc -> PlsDpw, OscTrivial -> Oscdpw
 OscDpwplsEval:
-	; WIP: live duty cycle changes? get value of first, add dc, put to second val, compute new dpw val
 	move X:(r0+PlsDpwIdx_Saw0+DpwOscIdx_Saw+SawOscIdx_Val),a
 	move X:(r0+PlsDpwIdx_Duty),y0
 	add y0,a
-	cmp #>1.0,a
-	ble _notovf ; FIXME :(
-		add #>-1.0,a
-		add #>-1.0,a
-	_notovf:
+	asl #8,a,a ; sneaky! 1+x -> -1+x if x >= 0
+	asr #8,a,a ; (copy the highest bit and sign-extend back)
 	move a,x0
 	move a,X:(r0+PlsDpwIdx_Saw1+DpwOscIdx_Saw+SawOscIdx_Val)
 	mpy x0,x0,a
 	move a,X:(r0+PlsDpwIdx_Saw1+DpwOscIdx_Val)
-	; FIXME: saw 1 does not need bsr osctrivialsaweval
+	; FIXME: saw 1 does not need bsr osctrivialsaweval?
 
 	bsr OscDpwsawEval
-	move a,x0
-	mpy #0.5,x0,b
+	asr #1,a,b	; /2
+
 	lea (r0+PlsDpwIdx_Saw1),r0
 	bsr OscDpwsawEval
-	move a,x0
-	mpy #0.5,x0,a
-	sub b,a	; pulse = saw difference
-	add #0.5,a
-	mac #-0.5,y0,a
+
+	asr a		; /2
+	sub b,a		; pulse = saw difference
+	add #0.5,a	; originally -1+duty..duty, shift to
+	mac #-0.5,y0,a	; between -1..1 (but half, dpw inaccuracies)
 	;asl a
 	rts
 
