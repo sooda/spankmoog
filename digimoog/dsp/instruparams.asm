@@ -94,6 +94,18 @@ Instrument_Bass4:
 filt4p	Filt4LP4Coefs
 tune7	Filt4CoefResComp 500.0*2*PI/RATE,0,0
 
+Instrument_Noise4:
+	dc Noise4Init-ChAlloc_InitInstruState
+	dc Noise4Osc-ChEval_OscEvalBranch
+	dc Noise4Filt-ChEval_FiltEvalBranch
+	if !simulator
+	AdsrParamBlock 0.0001,0.3,0.0,0.3
+	else
+	AdsrParamBlock 0.005,0.005,0.5,0.005
+	endif
+	Filt4HP4Coefs
+tune8	Filt4CoefResComp 5000.0*2*PI/RATE,0,0
+
 AllInstruments:
 	dc Instrument_Bass
 	dc Instrument_BassSinLfo
@@ -101,6 +113,7 @@ AllInstruments:
 	dc Instrument_PulseBass
 	dc Instrument_Noise
 	dc Instrument_Bass4
+	dc Instrument_Noise4
 
 ; addresses of tunable parameters
 ; these shall come with an accompanying manual with number mappings
@@ -118,6 +131,7 @@ InstruTunables:
 	dc tune5+1	; a: 4th instru dutycycle amplitude
 	dc tune6	; b: 5th instru filt cutoff
 	dc tune7	; c: 6th instru filt cutoff
+	dc tune8	; d: 7th instru filt cutoff
 
 
 ; CALLING CONVENTION

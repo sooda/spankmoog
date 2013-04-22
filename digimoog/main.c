@@ -76,14 +76,14 @@ static rtems_unsigned32 encoval;
 // otherwise, synth_idx = midichan_to_synth[midichan] - 1
 // note that the program change events are not used for anything
 // the keypad buttons work at channel 0
-#define SYNTH_INSTRUS 6
+#define SYNTH_INSTRUS 7
 #define MIDI_CHAN_MAP_SIZE 8
 static int midichan_to_synth[MIDI_CHAN_MAP_SIZE];
 static int midichanedit;
 
 // pot to tunable mapping
 // these in InstruTunables array in instruparams.asm
-#define TUNABLES_SIZE (0xc+1)
+#define TUNABLES_SIZE (0xd+1)
 static int pot_to_tunable[3];
 static int tunableedit;
 
@@ -273,7 +273,8 @@ void update_tunable(int i, int potvalue) {
 			case 0x9:
 			case 0xa: sendval = linear_table[potvalue]; break;
 			case 0xb: sendval = hihpass_pot(volume_table[potvalue]); break;
-			case 0xc: sendval = multipole_pot(volume_table[potvalue]); break;
+			case 0xc:
+			case 0xd: sendval = multipole_pot(volume_table[potvalue]); break;
 			default: Error("Bad tunable"); break;
 		}
 
