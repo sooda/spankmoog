@@ -86,6 +86,7 @@ AccumBackup2 ds 3
 AccumBackupLfo ds 3
 
 	org	Y:$000000
+	include 'sin_table.asm' ; NOTE: this must be included here (well, it's not quite that strict - see sin_table.asm)
 
 MasterVolume:		
 	ds	1		
@@ -139,7 +140,6 @@ PanicState:
 	include 'instruparams.asm'
 	include 'dpw_coefs.asm'
 	include 'saw_ticks.asm'
-	include 'sin_table.asm'
 ;**********************************************************************
 ; Interrupt vectors
 ;**********************************************************************

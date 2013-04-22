@@ -3,7 +3,7 @@
 ; This sin approximator approximates the sin function by interpolating values
 ; in a precalculated table (in sin_table.asm). Like oscillators and filters, the
 ; sin approximator has a state. The state contains three 24-bit numbers:
-; - M, an integer, index to the lookup table
+; - M+SinTable where M is the index to the lookup table
 ; - f, a fixed-point number, fractional part for interpolation
 ; - c, a fixed-point number, a constant added to f on every evaluation step
 ; such that the current approximation is calculated with
@@ -15,7 +15,7 @@
 ; would exceed 1.0. With LFOs this shouldn't be a problem, since e.g. with
 ; SinTableSize=32 this frequency threshold is 1500 Hz.
 
-LFOSinStateIdx_M equ 0
+LFOSinStateIdx_MPlusSinTable equ 0
 LFOSinStateIdx_f equ 1
 LFOSinStateIdx_c equ 2
 
@@ -26,10 +26,11 @@ LFOSinStateIdx_c equ 2
 ; Work registers:
 ; 	x0
 LFOSinInitState:
-	move x0,X:(r0+LFOSinStateIdx_c) ; state.c = c
+	move x0,X:(r0+LFOSinStateIdx_c)             ; state.c = c
+	move #>SinTable,x0
+	move x0,X:(r0+LFOSinStateIdx_MPlusSinTable) ; state.MPlusSinTable = SinTable, i.e. M = 0, i.e. start at the beginning
 	move #>0,x0
-	move x0,X:(r0+LFOSinStateIdx_M) ; state.M = 0
-	move x0,X:(r0+LFOSinStateIdx_f) ; state.f = 0.0
+	move x0,X:(r0+LFOSinStateIdx_f)             ; state.f = 0.0
 	rts
 
 ; Compute next value of sin
@@ -38,39 +39,36 @@ LFOSinInitState:
 ; Output:
 ; 	x1: approximate sin value
 ; Work registers:
-; 	b, x0, y0, r6
+; 	b, x0, y0, y1, r3, r6
 LFOSinEval:
 	; compute result
 	; in the comments here, let's abbreviate SinTable by T and SinTableSize by N.
-	; TODO: reorder these and get rid of some stalls
 
-	move X:(r2+LFOSinStateIdx_M),b  ; b  = M
-	and #>(SinTableSize-1),b        ; b  = M % N (NOTE: we're assuming N is a power of two)
-	move b,r6                       ; r6 = M % N
-	move Y:(r6+SinTable),x0         ; x0  = T[M % N]
-	add #>1,b                       ; b  = M+1
-	and #>(SinTableSize-1),b        ; b  = (M+1) % N
-	move b,r6                       ; r6 = (M+1) % N
-	move Y:(r6+SinTable),b          ; b  = T[(M+1) % N]
+	move X:(r2+LFOSinStateIdx_MPlusSinTable),r6 ; r6 = &T[M]
+	move #>(SinTableSize-1),m6
+
+	move Y:(r6)+,x0					; x0 = T[M % N]
+	move Y:(r6)-,b					; b = T[(M+1) % N]
 	sub x0,b                        ; b  = T[(M+1) % N] - T[M % N]
+	move X:(r2+LFOSinStateIdx_c),y1 ; y1 = c
 	move b,y0                       ; y0 = T[(M+1) % N] - T[M % N]
 	move x0,b                       ; b = T[M % N]
 	move X:(r2+LFOSinStateIdx_f),x0 ; x0 = f
 	mac x0,y0,b                     ; b  = T[M % N] + f*(T[(M+1) % N] - T[M % N])  (this is the interpolated result)
-	move X:(r2+LFOSinStateIdx_c),y0 ; y0 = c
-	move b,x1
+
+	lua (r6)+,r3                    ; r3 = &T[M+1]
+
+	move b,x1 ; result
 
 	; advance the state
 
 	move x0,b                        ; b = f
-	add y0,b                         ; b = f+c
-	move X:(r2+LFOSinStateIdx_M),y0
-	move b1,x0
+	add y1,b                         ; b = f+c
+	move b,x0
 	and #>$7fffff,b                  ; if f+c > 1.0, this wraps it back to f+c - 1.0
 	move b,X:(r2+LFOSinStateIdx_f)
-	move x0,b
-	lsr #23,b                        ; now, if f+c went >1.0, b1 will contain 1 (nb. not 1.0); otherwise 0
-	add y0,b
-	move b1,X:(r2+LFOSinStateIdx_M)
+	cmp x0,b                         ; if wrapped around, this yields not-equal...
+	tne r3,r6                        ; ...and r3, i.e. the address of the next table entry, goes to r6
+	move r6,X:(r2+LFOSinStateIdx_MPlusSinTable)
 
 	rts
