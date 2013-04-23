@@ -267,6 +267,7 @@ MainLoop:
 		move #>ChannelData,r1
 		do #NumChannels,PanicLoopEnd
 			bset #ChNoteDeadBit,X:(r1+n1)
+			lua (r1+ChannelCapacity),r1
 	PanicLoopEnd:
 	bclr #0,Y:PanicState ; not needed anymore (don't bother checking if it was on, just clear)
 	; check if a key just went down
