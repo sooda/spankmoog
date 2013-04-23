@@ -36,7 +36,9 @@ Noise4Filt:
 	move Y:(r4+InstruParamIdx_End+Filt4ParamsIdx_Coef),x1 ; TODO: can use Instrument_Bass4 etc. in all of these, as we know what instrument we're dealing with
 	move x1,X:(r0+Filt4StateIdx_Coef)
 	lua (r4+InstruParamIdx_End),r5
-	bra Filt4Eval
+	bsr Filt4Eval
+	asl #4,a,a ; hp coefs attenuate a * 1/8
+	rts
 
 Bass4Init:
 	lua (r1+ChDataIdx_FiltState),r0
