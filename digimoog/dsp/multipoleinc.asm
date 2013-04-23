@@ -34,8 +34,7 @@ Filt4LP4Coefs macro
 	dc 1.0
 	endm
 
-; FIXME: shift amount as another parameter
-; these do not sum to 1!
+; NOTE: these do not sum to 1!
 Filt4HP4Coefs macro
 	dc  1/8.0
 	dc -4/8.0

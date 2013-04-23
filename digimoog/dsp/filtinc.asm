@@ -24,7 +24,7 @@ FiltTrivialLpStateSize equ 2
 
 ; magic coefficient to multiply with
 FiltTrivialHpParams	macro	fc
-	dc	(1/(1+FiltTrivLpK*fc)) ; TODO RENAME
+	dc	(1/(1+FiltTrivLpK*fc))
 	endm
 
 FiltTrivialHpParamsSize equ 1

@@ -1,17 +1,10 @@
 ;**********************************************************************
 ; C H A M E L E O N   DSP Assembler file                              *
 ;**********************************************************************
-; S-89.3510 Assignment: Virtual analog synthesizer                    *
+; Digimoog project for Aalto ELEC S-89.3510 SPÄNK                     *
+; Virtual analog synthesizer                                          *
 ;                                                                     *
 ; By Konsta Hölttä and Nuutti Hölttä 2013                             *
-;                                                                     *
-; Current state: pretty much everything here and there                *
-;                                                                     *
-; Non-exhaustive list of TODOs in no particular order:                *
-; - A better way to handle the midi events in a queue or something    *
-; - more interesting instruments                                      *
-; - fix, optimize and prettify all the things                         *
-; - rewrite the current state documentation above                     *
 ;                                                                     *
 ; Some basic stuff based on:                                          *
 ; Project work template for sample-based audio I/O (polling)          *
@@ -59,7 +52,7 @@ DT	equ	1.0/RATE
 ; more than needed, but doesn't matter. NOTE: this must be increased
 ; if it's not enough for some oscillator+filter combination.
 ChannelCapacity  equ 63
-OscStateCapacity equ 25 ; FIXME: just a constant sized block, hope that no one is bigger
+OscStateCapacity equ 25 ; NOTE: just a constant sized block, hope that no one is bigger
 NumChannels      equ 10
 
 ChDataIdx_Note          equ 0
@@ -100,9 +93,9 @@ NoteThatWentUp:   ; If a key just went up, this holds the note value. Otherwise,
 InstrumentThatWentUp: ; If a key just went up, this holds the instrument index for that
 	ds	1
 
-; TODO: the above NoteThatWentDown end NoteThatWentUp currently don't support it when several keys
+; NOTE: the above NoteThatWentDown end NoteThatWentUp currently don't support it when several keys
 ; go down (or up) at about the same time (before the last one has been processed).
-; Might want to fix this if trouble ensues.
+; Might want to fix this if trouble ensues. Seems to work pretty well, though.
 
 PanelKeys_NoteOffset:
 	dc 0
@@ -284,7 +277,6 @@ MainLoop:
 
 		; find a free channel and initialize there
 		; NOTE: if no free channels are available, the new note is just ignored.
-		; NOTE: the inits must not edit r1 or r4. (FIXME: is this true anymore?)
 	AllocChannel:
 		move #>ChannelData,r1
 		do #NumChannels,ChannelAllocationLoopEnd
@@ -308,7 +300,7 @@ MainLoop:
 
 				move Y:(r4+InstruParamIdx_InitFunc),r0
 
-				lua (r1+ChDataIdx_OscState+OscStateCapacity),r2 ; FIXME: filtstate renders this useless
+				lua (r1+ChDataIdx_OscState+OscStateCapacity),r2
 				move r2,X:(r1+ChDataIdx_FiltStateAddr)
 
 				ChAlloc_InitInstruState:
@@ -330,13 +322,12 @@ MainLoop:
 	do #NumChannels,ChannelEvaluateLoopEnd
 		move X:(r1+ChDataIdx_Note),y0
 		brset #ChNoteDeadBit,y0,DeadChannel
-			; TODO: maybe read this and r1 always before calling
+			; Could maybe read this and r1 always before calling
 			; those so they don't need to backup these. it's just a
 			; couple of cycles.
 			move X:(r1+ChDataIdx_InstruPtr),r4
 
 			; save value of b so far
-			; TODO: come up with a nicer way. This is slow.
 			move b0,X:(AccumBackup)
 			move b1,X:(AccumBackup+1)
 			move b2,X:(AccumBackup+2)
@@ -379,7 +370,7 @@ MainLoop:
 
 		_notkilled:
 			move a,x0
-			move r3,x1 ; TODO: return adsr value in x1?
+			move r3,x1 ; FIXME: return adsr value in x1?
 			mpy x0,x1,a ; a *= adsr
 
 			move X:(r1+ChDataIdx_Velocity),x1

@@ -11,6 +11,8 @@ BassInit:
 
 BassFilt:
 	; LFO-like effect: simply replace the coefficient with probably newly updated value from the panel
+	; could use Instrument_Bass etc. in all of these instead of r4, as we know what instrument we're dealing with
+	; but let's be nice and generic anyway
 	move Y:(r4+InstruBassIdx_Lp+FiltTrivialLpParamsIdx_Coef),x1
 	move x1,X:(r0+FiltTrivialLpStateIdx_Coef)
 	bra FiltTrivialLpEval
@@ -26,8 +28,7 @@ Noise4Init:
 	rts
 
 Noise4Filt:
-	; LFO-like effect: simply replace the coefficient with probably newly updated value from the panel
-	move Y:(r4+InstruParamIdx_End+Filt4ParamsIdx_Coef),x1 ; TODO: can use Instrument_Bass4 etc. in all of these, as we know what instrument we're dealing with
+	move Y:(r4+InstruParamIdx_End+Filt4ParamsIdx_Coef),x1
 	move x1,X:(r0+Filt4StateIdx_Coef)
 	lua (r4+InstruParamIdx_End),r5
 	bsr Filt4Eval
@@ -46,8 +47,7 @@ Bass4Init:
 	rts
 
 Bass4Filt:
-	; LFO-like effect: simply replace the coefficient with probably newly updated value from the panel
-	move Y:(r4+InstruParamIdx_End+Filt4ParamsIdx_Coef),x1 ; TODO: can use Instrument_Bass4 etc. in all of these, as we know what instrument we're dealing with
+	move Y:(r4+InstruParamIdx_End+Filt4ParamsIdx_Coef),x1
 	move x1,X:(r0+Filt4StateIdx_Coef)
 	lua (r4+InstruParamIdx_End),r5
 	bra Filt4Eval
@@ -118,7 +118,6 @@ BassAdsrLfoFilt:
 	; use the ADSR as an LFO:
 	; the ADSR needs the A register, and also r0 and r4 are swapped
 	; "push" and "pop" the state to registers temporarily
-	; TODO: do something more clever with this
 	move a,r6
 	move r4,n4
 	lua (r0+BassAdsrStateIdx_Adsr),r2
@@ -157,9 +156,8 @@ PulseBassInit:
 
 PulseBassOsc:
 	; use the ADSR as an LFO: tune the duty cycle
-	; r0 and r4 are swapped for adsr (FIXME)
+	; r0 and r4 are swapped for adsr
 	; "push" and "pop" the state to registers temporarily
-	; TODO: do something more clever with this
 	move r4,n4
 	lua (r0+PulseBassStateIdx_Adsr),r2
 	move r0,n0
@@ -193,7 +191,6 @@ NoiseInstInit:
 	bra NoiseInit
 
 NoiseInstFilt:
-	; LFO-like effect: simply replace the coefficient with probably newly updated value from the panel
 	move Y:(r4+InstruNoiseIdx_Hp+FiltTrivialHpParamsIdx_Coef),x1
 	move x1,X:(r0+FiltTrivialHpStateIdx_Coef)
 	bra FiltTrivialHpEval

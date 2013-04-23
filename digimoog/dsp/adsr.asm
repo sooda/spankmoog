@@ -91,7 +91,7 @@ AdsrEval:
 	move X:(r4+AdsrStateIdx_Mode),r3
 	brset #ChNoteKeyoffBit,r2,_gateoff
 _gateon:
-	brset #ADSR_MODE_ATTACK_BIT,r3,_attack ; TODO: can I hack the A reg loading here?
+	brset #ADSR_MODE_ATTACK_BIT,r3,_attack
 	brset #ADSR_MODE_DECAY_BIT,r3,_decay
 	bra _gotresult
 _attack:
@@ -129,7 +129,7 @@ _decay:
 	bra _gotresult
 _gateoff:
 	brset #ADSR_MODE_RELEASE_BIT,r3,_relinited
-	brset #ADSR_MODE_KILLED_BIT,r3,_gotresult ; TODO: can this be ever called if the note is killed?
+	brset #ADSR_MODE_KILLED_BIT,r3,_gotresult ; NOTE: can this be ever called if the note is killed?
 _relinit: ; start release state from whatever state we are in (a/d)
 	; compute release target:
 	;   current + (0 - current) * targetcoef
@@ -153,7 +153,7 @@ _gotokilled:
 	move #>ADSR_MODE_KILLED,x0
 	move x0,X:(r4+AdsrStateIdx_Mode)
 	move #>0,x0
-	move x0,X:(r4+AdsrStateIdx_Val) ; TODO: is this needed after we've killed the thing?
+	move x0,X:(r4+AdsrStateIdx_Val)
 	move #>-1.0,r3 ; kill signal
 _gotresult:
 	rts

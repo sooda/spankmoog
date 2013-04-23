@@ -7,8 +7,6 @@
 
 
 ; INITIALIZATION ROUTINES
-; TODO: start from 0, not -1? (not possible with pulse...)
-; many states depend on previous value, maybe change them all to -1?
 
 ; args: workspace at X:(r0), note number at r4
 ; work regs: x1
@@ -26,16 +24,15 @@ OscDpwsawInit:
 	move #>1.0,x1
 	move x1,X:(r0+DpwOscIdx_Val)
 	move Y:(r4+DpwCoefs),x1
-	move x1,X:(r0+DpwOscIdx_Coef) ; c coefficient, shifted by 11 (max amount 1500, for freq 8Hz) (TODO: we don't need that low freqs really, get more bits without them)
+	move x1,X:(r0+DpwOscIdx_Coef) ; c coefficient, shifted by 11 (max amount 1500, for freq 8Hz)
 	rts
 
 ; args: workspace at X:(r0), note number at r4, duty cycle (0=0%, 1=50%) at x1
 ; work regs: x1, a, r0, x0
-; TODO: maybe use triangles in range [0,1) instead of [-1,1)
+; could use triangles in range [0,1) instead of [-1,1)
 ; would be easier to scale this thing then
 ; NOTE: high value is at duty cycle, low at duty cycle - 1
 ; maybe sum it so that high is at 0.5 or at 1?
-; TODO: duty cycle isn't used in runtime, how do I update it?
 PlsTrivialInit:
 	move x1,X:(r0+PlsOscIdx_Duty)
 	move x1,x0
@@ -50,7 +47,6 @@ PlsTrivialInit:
 
 ; args: workspace at X:(r0), note number at r4, duty cycle (0=0%, 1=50%) at x1
 ; work regs: x1, a, r0, x0
-; TODO, NOTE: same as above
 PlsDpwInit:
 	move x1,X:(r0+PlsDpwIdx_Duty)
 	move x1,x0
@@ -58,7 +54,7 @@ PlsDpwInit:
 	bsr OscDpwsawInit
 	lea (r0+PlsDpwIdx_Saw1),r0
 	bsr OscDpwsawInit
-	move X:(r0+SawOscIdx_Val),a ; TODO: update dpwval to be a^2
+	move X:(r0+SawOscIdx_Val),a
 	add x0,a
 	move a,X:(r0+SawOscIdx_Val)
 	rts
@@ -105,7 +101,7 @@ OscDpwsawEval:
 ; params: X:r0 = state pointer
 ; work regs: x0, a, b
 ; output in: a (see value range docs above in init)
-; TODO: unnecessary, remove?
+; NOTE: this is not really used anymore
 OscTrivialplsEval:
 	bsr OscTrivialsawEval
 	move a,b

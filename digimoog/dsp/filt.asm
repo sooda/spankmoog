@@ -20,7 +20,7 @@ FiltTrivialLpInit:
 FiltTrivialLpEval:
 	move X:(r0+FiltTrivialLpStateIdx_Val),b
 	move X:(r0+FiltTrivialLpStateIdx_Coef),x0
-	asr #1,b,b	; value /= 2 (TODO: store /2 to eliminate this)
+	asr #1,b,b	; value /= 2
 	asr #1,a,a	; target /= 2
 	sub b,a		; a = 0.5*(tgt - value)
 	nop		; stall :(
