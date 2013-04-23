@@ -9,9 +9,6 @@ BassInit:
 
 	rts
 
-BassOsc:
-	bra OscDpwsawEval
-
 BassFilt:
 	; LFO-like effect: simply replace the coefficient with probably newly updated value from the panel
 	move Y:(r4+InstruBassIdx_Lp+FiltTrivialLpParamsIdx_Coef),x1
@@ -27,9 +24,6 @@ Noise4Init:
 	bsr NoiseInit
 
 	rts
-
-Noise4Osc:
-	bra NoiseEval
 
 Noise4Filt:
 	; LFO-like effect: simply replace the coefficient with probably newly updated value from the panel
@@ -50,9 +44,6 @@ Bass4Init:
 	bsr OscDpwsawInit
 
 	rts
-
-Bass4Osc:
-	bra OscDpwsawEval
 
 Bass4Filt:
 	; LFO-like effect: simply replace the coefficient with probably newly updated value from the panel
@@ -193,7 +184,6 @@ PulseBassOsc:
 PulseBassFilt:
 	rts
 
-
 NoiseInstInit:
 	lua (r1+ChDataIdx_FiltState),r0
 	lua (r4+InstruNoiseIdx_Hp),r5
@@ -201,9 +191,6 @@ NoiseInstInit:
 
 	lua (r1+ChDataIdx_OscState),r0
 	bra NoiseInit
-
-NoiseInstOsc:
-	bra NoiseEval
 
 NoiseInstFilt:
 	; LFO-like effect: simply replace the coefficient with probably newly updated value from the panel

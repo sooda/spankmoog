@@ -18,7 +18,7 @@ InstruBassIdx_Lp	equ	InstruParamIdx_End
 
 Instrument_Bass:
 	dc BassInit-ChAlloc_InitInstruState
-	dc BassOsc-ChEval_OscEvalBranch
+	dc OscDpwsawEval-ChEval_OscEvalBranch
 	dc BassFilt-ChEval_FiltEvalBranch
 	if !simulator
 tune1	AdsrParamBlock 0.1,0.1,0.5,0.1
@@ -29,7 +29,7 @@ tune2	FiltTrivialLpParams 5000
 
 Instrument_BassSinLfo:
 	dc BassSinLfoInit-ChAlloc_InitInstruState
-	dc BassOsc-ChEval_OscEvalBranch
+	dc OscDpwsawEval-ChEval_OscEvalBranch
 	dc BassSinLfoFilt-ChEval_FiltEvalBranch
 	if !simulator
 	AdsrParamBlock 0.1,0.1,0.5,0.1
@@ -40,7 +40,7 @@ tune3	FiltTrivialLpParamsLfo 1200,1000
 
 Instrument_BassAdsrLfo:
 	dc BassAdsrLfoInit-ChAlloc_InitInstruState
-	dc BassOsc-ChEval_OscEvalBranch
+	dc OscDpwsawEval-ChEval_OscEvalBranch
 	dc BassAdsrLfoFilt-ChEval_FiltEvalBranch
 	AdsrParamBlock 0.1,0.1,0.5,0.1
 	FiltTrivialLpParamsLfo 500,3500
@@ -73,7 +73,7 @@ InstruNoiseIdx_Hp	equ	InstruParamIdx_End
 
 Instrument_Noise:
 	dc NoiseInstInit-ChAlloc_InitInstruState
-	dc NoiseInstOsc-ChEval_OscEvalBranch
+	dc NoiseEval-ChEval_OscEvalBranch
 	dc NoiseInstFilt-ChEval_FiltEvalBranch
 	if !simulator
 	AdsrParamBlock 0.0001,0.3,0.0,0.3
@@ -84,7 +84,7 @@ tune6	FiltTrivialHpParams 5000
 
 Instrument_Bass4:
 	dc Bass4Init-ChAlloc_InitInstruState
-	dc Bass4Osc-ChEval_OscEvalBranch
+	dc OscDpwsawEval-ChEval_OscEvalBranch
 	dc Bass4Filt-ChEval_FiltEvalBranch
 	if !simulator
 	AdsrParamBlock 0.1,0.1,0.5,0.1
@@ -96,7 +96,7 @@ tune7	Filt4CoefResComp 500.0*2*PI/RATE,0.5,0.5
 
 Instrument_Noise4:
 	dc Noise4Init-ChAlloc_InitInstruState
-	dc Noise4Osc-ChEval_OscEvalBranch
+	dc NoiseEval-ChEval_OscEvalBranch
 	dc Noise4Filt-ChEval_FiltEvalBranch
 	if !simulator
 	AdsrParamBlock 0.0001,0.3,0.0,0.3
