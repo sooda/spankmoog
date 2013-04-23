@@ -11,9 +11,10 @@ Filt4Init:
 	move x0,X:(r0+Filt4StateIdx_Part3+Filt4PartStateIdx_y0)
 	move x0,X:(r0+Filt4StateIdx_Mem)
 	move Y:(r5+Filt4ParamsIdx_Coef),x0
-	;move #0.06544984694978735914,x0 ;Y:(r5+Filt4ParamsIdx_Coef),x0
 	bsr Filt4SetCoef
-	;bsr Filt4SetRes
+	move Y:(r5+Filt4ParamsIdx_Gres),y0
+	move y0,X:(r0+Filt4StateIdx_Gres)
+	bsr Filt4SetRes
 	rts
 
 ; workspace: X:(r0)
@@ -35,7 +36,7 @@ Filt4SetCoef:
 	move b,X:(r0+Filt4StateIdx_Coef)
 	rts
 
-; input: w (0..1) in x0, c_res in y0
+; input: w (0..1) in x0, c_res in y0, state in X:r0
 ; self.g_res = c_res * (1.0029 + 0.0526 * w - 0.0926 * w**2 + 0.0218 * w**3)
 Filt4SetRes:
 				; x0 = w
@@ -79,10 +80,22 @@ Filt4RunPart macro
 ; workspace: X:(r0), params Y:(r5)
 ; input: a
 ; output: a
-; work regs: monta
+; work regs: several
 Filt4Eval:
-; TODO: resonance
+	; x = x_in - 4 * g_res * (mem - g_comp * x_in)
+	move Y:(r5+Filt4ParamsIdx_Gcomp),y1
+	move X:(r0+Filt4StateIdx_Gres),y0
+	move X:(r0+Filt4StateIdx_Mem),x0
 	move a,x1
+	mpy y1,x1,b	; b = g_comp * x_in
+	sub x0,b	; b = g_comp * x_in - mem
+	neg b		; b = mem - g_comp * x_in
+	move b,x0
+	mpy x0,y0,b	; b = g_res * (mem - g_comp * x_in)
+	asl #2,b,b	; b = 4 * g_res * (mem - g_comp * x_in)
+	sub b,a		; x = x_in - b
+	move a,x1	; x1 = x
+
 	move Y:(r5+Filt4ParamsIdx_A),x0
 	mpy x0,x1,b			; b = A * x1
 
@@ -104,8 +117,8 @@ filt43	Filt4RunPart
 	lea (r0+Filt4StateIdx_Part3),r2
 filt44	Filt4RunPart
 	move Y:(r5+Filt4ParamsIdx_E),x0
+	move b,X:(r0+Filt4StateIdx_Mem)
 	mac x0,y1,b
-	; TODO: resonance
 filt4o	move b,a
 	rts
 

@@ -92,7 +92,7 @@ Instrument_Bass4:
 	AdsrParamBlock 0.005,0.005,0.5,0.005
 	endif
 filt4p	Filt4LP4Coefs
-tune7	Filt4CoefResComp 500.0*2*PI/RATE,0,0
+tune7	Filt4CoefResComp 500.0*2*PI/RATE,0.5,0.5
 
 Instrument_Noise4:
 	dc Noise4Init-ChAlloc_InitInstruState
@@ -131,7 +131,8 @@ InstruTunables:
 	dc tune5+1	; a: 4th instru dutycycle amplitude
 	dc tune6	; b: 5th instru filt cutoff
 	dc tune7	; c: 6th instru filt cutoff
-	dc tune8	; d: 7th instru filt cutoff
+	dc tune7+1	; d: 6th instru filt resonance
+	dc tune8	; e: 7th instru filt cutoff
 
 
 ; CALLING CONVENTION

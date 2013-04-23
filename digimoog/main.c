@@ -83,7 +83,7 @@ static int midichanedit;
 
 // pot to tunable mapping
 // these in InstruTunables array in instruparams.asm
-#define TUNABLES_SIZE (0xd+1)
+#define TUNABLES_SIZE (0xe + 1)
 static int pot_to_tunable[3];
 static int tunableedit;
 
@@ -274,7 +274,8 @@ void update_tunable(int i, int potvalue) {
 			case 0xa: sendval = linear_table[potvalue]; break;
 			case 0xb: sendval = hihpass_pot(volume_table[potvalue]); break;
 			case 0xc:
-			case 0xd: sendval = multipole_pot(volume_table[potvalue]); break;
+			case 0xd:
+			case 0xe: sendval = multipole_pot(volume_table[potvalue]); break;
 			default: Error("Bad tunable"); break;
 		}
 
