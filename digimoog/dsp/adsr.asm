@@ -130,7 +130,7 @@ _decay:
 _gateoff:
 	brset #ADSR_MODE_RELEASE_BIT,r3,_relinited
 	brset #ADSR_MODE_KILLED_BIT,r3,_gotresult ; TODO: can this be ever called if the note is killed?
-_relinit: ; start release state from whatever state we are in (a/d/s)
+_relinit: ; start release state from whatever state we are in (a/d)
 	; compute release target:
 	;   current + (0 - current) * targetcoef
 	; = (1 - targetcoef) * current
@@ -147,7 +147,8 @@ _relinited:
 	move X:(r4+AdsrStateIdx_Tgt),b
 	move Y:(r0+AdsrParamIdx_R),x0
 	AdsrLpCareful
-	brclr #23,a1,_gotresult ; didn't overflow yet
+	cmp #0.0,a
+	bgt _gotresult
 _gotokilled:
 	move #>ADSR_MODE_KILLED,x0
 	move x0,X:(r4+AdsrStateIdx_Mode)
