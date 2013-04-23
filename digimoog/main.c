@@ -56,7 +56,7 @@ enum Key {
 };
 
 // number of keys that play a note instead of controlling something
-#define NOTE_KEYS 2
+#define NOTE_KEYS 1
 
 // Required definitions for a Chameleon application
 /**********************************************************************/
@@ -242,7 +242,8 @@ static void keydown(enum Key key) {
 			pot_to_tunable[tunableedit] = TUNABLES_SIZE;
 		break;
 	default:
-		synth_note_on((int)key + NOTE_KEYS * encoval, 0, 10);
+		if (key < NOTE_KEYS)
+			synth_note_on((int)key + NOTE_KEYS * encoval, 0, 50);
 	}
 }
 static void keyup(enum Key key) {
