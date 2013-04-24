@@ -267,7 +267,7 @@ void update_tunable(int i, int potvalue) {
 			case 0x2: sendval = adsr_time(linear_table[potvalue]); break;
 			case 0x3: sendval = lowpass_pot(volume_table[potvalue]); break;
 			case 0x4: sendval = lowpass_pot(volume_table[potvalue]); break;
-			case 0x5: sendval = lowpass_dif(volume_table[potvalue]); break;
+			case 0x5: sendval = linear_table[potvalue]; break;
 			case 0x6:
 			case 0x7:
 			case 0x8: sendval = adsr_time(linear_table[potvalue]); break;

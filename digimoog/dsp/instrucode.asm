@@ -62,7 +62,10 @@ BassSinLfoInit:
 	bsr FiltTrivialLpInit
 
 	lua (r1+ChDataIdx_FiltState+BassLfoStateIdx_Lfo),r0
-	move #(5.0*SinTableSize/RATE),x0
+
+	move Y:tune31,y0
+	mpy #(30.0*SinTableSize/RATE),y0,a
+	move a,x0
 	bsr LFOSinInitState
 
 	lua (r1+ChDataIdx_OscState),r0

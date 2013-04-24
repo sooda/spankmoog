@@ -37,6 +37,7 @@ Instrument_BassSinLfo:
 	AdsrParamBlock 0.005,0.005,0.5,0.005
 	endif
 tune3	FiltTrivialLpParamsLfo 1200,1000
+tune31	dc 0.1
 
 Instrument_BassAdsrLfo:
 	dc BassAdsrLfoInit-ChAlloc_InitInstruState
@@ -123,7 +124,7 @@ InstruTunables:
 	dc tune1+3	; 2: 1st instru adsr R
 	dc tune2	; 3: 1st instru filt cutoff
 	dc tune3	; 4: 2nd instru filt base
-	dc tune3+1	; 5: 2nd instru filt amplitude
+	dc tune31	; 5: 2nd instru filt sin freq
 	dc tune4	; 6: 3rd instru filt adsr A
 	dc tune4+1	; 7: 3rd instru filt adsr D
 	dc tune4+3	; 8: 3rd instru filt adsr R
