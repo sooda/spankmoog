@@ -1,0 +1,113 @@
+\documentclass[finnish]{beamer}
+\usepackage[latin1]{inputenc}
+%\usepackage{fontspec}
+\usetheme{Frankfurt}
+
+\usecolortheme[named=violet]{structure}
+% \usecolortheme[rgb={0.5,0.02,0.33}]{structure}
+
+\title{Virtual Analog Synthesis}
+\author{Konsta and Nuutti Hölttä}
+\date{24.4.2013}
+
+\newcommand{\kuva}[2]{\begin{figure}[h]
+\includegraphics[width=#1\textwidth]{#2}
+\end{figure}}
+
+\begin{document}
+
+
+\maketitle
+
+\section{Intro}
+\subsection*{}
+\subsubsection*{}
+\begin{frame}
+	\frametitle{Intro}
+	\begin{itemize}
+	\item Analog synthesis: capacitors, resistors, opamps
+	\item Virtual: in software, replicating the behavior
+	\item Several channels for many simultaneous notes
+	\item MIDI input
+	\item Trivial sequencer
+	\end{itemize}
+\end{frame}
+
+\subsubsection*{}
+\begin{frame}
+	\frametitle{Moog synth}
+	\kuva{0.8}{moog.jpg}
+\end{frame}
+
+\subsubsection*{}
+\begin{frame}
+	\frametitle{Chameleon DSP}
+	\kuva{1.0}{chameleon.jpg}
+\end{frame}
+
+\subsubsection*{}
+\begin{frame}
+	\frametitle{Structure}
+	\kuva{0.8}{rakenne.png}
+\end{frame}
+
+\subsubsection*{}
+\begin{frame}
+	\frametitle{Waveforms}
+	\kuva{0.8}{waveforms.png}
+\end{frame}
+
+\subsubsection*{}
+\begin{frame}
+	\frametitle{ADSR}
+	\kuva{0.9}{adsr.png}
+
+	An envelope for every instrument's output volume
+\end{frame}
+
+\section{Demos}
+\subsection*{Instruments}
+\subsubsection*{}
+\begin{frame}
+\setbeamercovered{transparent}
+	\frametitle{Instruments}
+	\begin{enumerate}[<+->]
+	\item Simple lowpass filtered saw
+	\item Saw with sinewave LFO on LP cutoff
+	\item Saw with ADSR on lowpass cutoff
+	\item Pulse with ADSR on duty cycle
+	\item Highpass filtered noise (hi-hat drum)
+	\item 4-pole-LP filtered saw
+	\item 4-pole-HP filtered noise
+	\end{enumerate}
+\end{frame}
+
+\subsection*{}
+\subsubsection*{Simultaneous}
+\begin{frame}
+	\frametitle{Simultaneous play}
+	isi.mid by viznut
+\end{frame}
+
+\subsection*{Sequencer}
+\subsubsection*{seq}
+\begin{frame}
+	\frametitle{Sequencer}
+	\begin{itemize}
+		\item Simple recording of note events
+		\item Save a background tune
+		\item Play different instrument manually
+	\end{itemize}
+\end{frame}
+
+\subsubsection*{}
+\begin{frame}
+	\frametitle{Live music}
+	\begin{itemize}
+		\item We're not musicians, sorry
+		\item Anyone?
+	\end{itemize}
+\end{frame}
+
+
+\end{document}
