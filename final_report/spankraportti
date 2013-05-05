@@ -1,0 +1,75 @@
+1. Introduction – Short description of the project
+2. Realization – Detailed descriptiona of all functional parts of the algorithm, divide according to the functional parts
+3. Self-assessment – Notes on the realization and division of the assignment workload between group members
+4. Conclusions – Concluding remarks on the special assignment in whole
+5. Appendices – The code well commented
+
+TODO: introductioniin: fixedpoint-dsp, plää, skaalauslötöt, löö, 1.0 != 1.0 t. aku float setä, etc, epsilonit, yms
+
+Realization
+===========
+
+The program is divided into two high-level parts, the actual synth (written in DSP56k assembly) and a user interface with MIDI event and panel handling part (written in C). The synth runs on the DSP and the interface on the ColdFire.
+
+Synth code
+++++++++++
+
+The synth code consists of oscillators and filters which are combined into instruments (with ADSR envelopes), and a main routine that evaluates the instruments and generates each sample.
+
+Main routine
+------------
+
+The main routine is what puts everything in the DSP part together. When the user presses a key on the MIDI keyboard, an interrupt is sent by the ColdFire to the DSP. The interrupt places its data into specific memory slots which are then read in the main loop. Whenever the code in the main loop detects that a key just went down, it proceeds to allocate a new "channel" for this new note - channels are data structures containing information about currently active notes (such as note number and instrument type). There is a fixed maximum number of channels, and if they're all in use when a new key-down event arrives, the new key is simply ignored. Otherwise, the channel's contents are initialized to appropriate values.
+
+The output generation acts on a per-sample basis (in contrast to a block-based behavior). The samples are generated as follows. The main routine loops through the channels, and for each active channel, the corresponding instrument's oscillator and filter subroutines are called. The oscillator is evaluated first, and its output goes to the filter. The output of the filter is then modulated by an ADSR envelope. This is visualized in figure TODO.
+
+The results of each channel are summed together to form the final output. The output is sent to the DAC peripheral, which syncs the sample rate.
+
+When the user releases a key, an interrupt is sent in a manner similar to when a key went down. The main routine processes this event by finding the corresponding channel and marks it as released. The channel is not killed at this point; instead, the ADSR state is set to release. The channel is killed when the release stage ends, i.e. the ADSR value goes to zero.
+
+Oscillators
+-----------
+
+Oscillators consist of a set of parameter and state values. Parameters are per-instrument, whereas the state contains data specific for an oscillator. When a new note is started, the oscillator's state is initialized with values depending on the note value. When an oscillator is evaluated, it generates its output value using these values. Furthermore, it advances its state so that the next time the oscillator is evaluated, it produces the next value. The output of an oscillator is a function of only the parameters and the state; that is, there is no global time counter.
+
+Sawtooth
+........
+
+The sawtooth oscillator is basically just a counter that is incremented every time it is evaluated. The amount by which it is incremented depends on the frequency of the note and thus the MIDI note value. These constants are compile-time precalculated per each MIDI note (of which there are just 128, so not much memory is used). The value of the sawtooth ranges from -1.0 to 1.0; a neat branchless bit-shifting trick is used to wrap the values from 1.0+x back to -1.0+x.
+
+DPW sawtooth
+............
+
+Because of the aliased nature of the pure sawtooth it sounds rather unpleasant, and it must be corrected using the DPW (differentiated parabolic waveform) method [TODO:ref]. DPW sawtooth basically outputs the derivative of a squared sawtooth. A DPW sawtooth oscillator is thus based on a pure sawtooth, but its state contains also the previous squared value of the sawtooth signal. Its evaluation consists of taking the difference of the square of the current value of the pure sawtooth and the previous squared value, scaled by a factor that depends on the frequency of the oscillator [ref:kaavaTODO] [fig:TODO].
+
+  [TODO: kaava]
+
+DPW pulse
+.........
+
+Huovilainen presents the same problem as with sawtooths [TODO:ref], which is corrected here similarly. While a pure pulse wave is implementable as the difference of two phase-shifted pure sawtooths, a DPW pulse wave is similarly the difference of two DPW sawtooths. The amount of phase-shifting depends on the desired duty cycle of the pulse wave. The duty cycle can be modified on the fly, e.g. with a LFO.
+
+Noise
+.....
+
+The noise oscillator is implemented with a simple white noise pseudo-random xorshift algorithm [TODO:ref (googlella xorshift rngs, se pdf siitä)]. Unlike the other oscillators, the output of the noise oscillator doesn't vary according to the note, since white noise contains all frequencies. Instead it is convenient to combine this oscillator with e.g. a high-pass filter.
+
+Sine wave
+.........
+
+The sine wave is implemented with a lookup table with linear interpolation between the samples. Since a sine wave makes a rather uninteresting oscillator for an instrument, it is not used as such; instead it is used for LFOs. Since LFOs only require fairly low frequencies, this also permits the usage of a rather small lookup table without audible deficiencies.
+
+Filters
+-------
+
+Similarly to oscillators, filters also have parameters and states. Filter evaluation routines differ from oscillators in the way that oscillators take no per-sample input, whereas filters do take input, namely the output of an oscillator.
+
+Trivial lowpass
+...............
+
+This filter is a one-pole lowpass whose state contains its last output and the smoothing factor. The implementation is rather straightforward, however one must pay attention to fixed-point issues and scale values appropriately.
+
+Trivial highpass
+................
+
+This is structured quite similarly to the lowpass, only the output calculation differs.
