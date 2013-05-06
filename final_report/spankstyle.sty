@@ -1,0 +1,50 @@
+\usepackage[utf8]{inputenc}
+\usepackage[finnish,english]{babel}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{epstopdf}
+\usepackage{multirow}
+\usepackage{verbatim}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{1em}
+
+\usepackage{fancyhdr}
+\fancyhf{}
+\setlength{\headheight}{23pt}
+\renewcommand{\headrulewidth}{0pt}
+\fancyhead[L]{\bfseries S-89.3510 DSP Processors and Audio Signal Processing\\\@topic}
+\fancyhead[R]{Group \@groupId\\\@platform}
+\fancyfoot[R]{\thepage}
+\pagestyle{fancy}
+
+\usepackage[pdftex]{thumbpdf}
+\usepackage[pdftex,bookmarks=true,bookmarksnumbered=true,hypertexnames=false,%
+  breaklinks=true,linkbordercolor={0 0 0},bookmarksopen=true,%
+  hyperfigures=false,colorlinks=true,urlcolor=blue,linkcolor=black,%
+  citecolor=black]{hyperref}
+  
+\def\groupId#1{\gdef\@groupId{#1}} \gdef\@groupId{0}
+\def\students#1#2#3{\gdef\@students{#1\\#2\\#3}} \gdef\@students{Author1, StudID1\\Author2, StudID2\\Author3, StudID3}
+\def\topic#1{\gdef\@topic{#1}} \gdef\@topic{Topic}
+\def\platform#1{\gdef\@platform{#1}} \gdef\@platform{Platform}
+\renewcommand{\maketitle}{%
+	\thispagestyle{empty}
+	\null\vskip10em
+	\begin{center}
+		{\bf\huge S-89.3510 DSP Processors and Audio Signal Processing}\vskip2em
+		{\LARGE\@topic}\vskip1em
+		{\Large\@platform}
+	\end{center}\vfill
+	\begin{flushright}
+	\large
+	Group \@groupId\vskip0.5em
+	\@students
+	\end{flushright}
+	\newpage
+	\setcounter{page}{1}
+	\tableofcontents
+	\newpage
+}
