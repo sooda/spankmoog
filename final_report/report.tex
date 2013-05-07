@@ -72,7 +72,7 @@ Because of the aliased nature of the pure sawtooth it sounds rather unpleasant, 
 where
 
 \[
-  c = (f_s / (4*f * (1 - f/f_s)))
+  c = \frac{f_s}{4 f (1 - f/f_s)}
 \]
 
 $f$ is the saw's frequency and $f_s$ is the sampling frequency. \verb|saw(n)| is the pure saw function at the note frequency.
@@ -121,8 +121,10 @@ The output y changes according to the following pseudo-code (x is the input):
 where
 
 \[
-  g = \frac{2 \pi t f_c}{2 \pi t f_c + 1}
-  t = 1 / f_s
+\begin{split}
+  g &= \frac{K f_c}{K f_c + 1},\\
+  K &= \frac{2 \pi}{f_s}
+\end{split}
 \]
 
 $f_c$ is the cutoff frequency and $f_s$ is the sampling frequency.
@@ -140,8 +142,10 @@ The output y changes according to the following pseudo-code (x1 is the new input
 where
 
 \[
-  g = \frac{1}{2 \pi t f_c + 1}
-  t = 1 / f_s
+\begin{split}
+  g &= \frac{1}{K f_c + 1}\\
+  K &= \frac{2 \pi}{f_s}
+\end{split}
 \]
 
 $f_c$ is the cutoff frequency and $f_s$ is the sampling frequency.
@@ -160,60 +164,73 @@ Attack and release stages have their time constant target beyond the actual valu
 
 Table TODO. Filter parameters.
 
-name		Specified as	Used and stored as
-attack		Time			Modified LP coefficient
-decay		Time			LP coefficient
-sustain		Level			Final note volume
-release		Time			Modified LP coefficient
+\begin{tabular}{l l l}
+	name	&	Specified as&	Used and stored as\\
+	\hline
+	attack	&	Time		&	Modified LP coefficient\\
+	decay	&	Time		&	LP coefficient\\
+	sustain	&	Level		&	Final note volume\\
+	release	&	Time		&	Modified LP coefficient
+\end{tabular}
 
-An LP filter, i.e. exponentially decaying function, is used as in formula X:
+An LP filter, i.e. exponentially decaying function, is used as follows:
 
+\begin{verbatim}
  state += g * (target - state)
+\end{verbatim}
 
 The coefficient g is computed from the time where approx. 63 \% (we'll call this $\lambda$) of the target value is reached (a time constant of an RC circuit represents the time it takes for the step response to reach $1-1/e$ of the target value):
 
 \[
- g = 1 - e^(\frac{-1}{T * rate})
+ g = 1 - e^{\frac{-1}{T * f_c}}
 \]
 
 Because of the natural decay constant $\lambda$, the attack and release target values are computed by multiplying the target value by
 
 \[
- \lambda = \frac{e}{e-1} = ~0.63
+ \lambda = \frac{e}{e-1} \approx 0.63
 \]
 
 so that $\lambda$ of this new target is actually what we want (from zero to 1 in attack phase, or from the current value to 0 in release phase). The actual target $t$ is computed from the wanted value $w$ when starting value is $s$ with
 
 \[
- \lambda * (t - s) = w - s
- t - s = (w - s) / \lambda
- t = s + (w - s) / \lambda
+\begin{split}
+ \lambda (t - s) &= w - s\\
+ t - s &= (w - s) / \lambda\\
+ t &= s + (w - s) / \lambda
+\end{split}
 \]
 
 In attack phase, this is (also visualized in figure TODO)
 
 \[
- t = 0 + (1 - 0) / \lambda
-   = 1 / \lambda = ~1.58
+\begin{split}
+ t &= 0 + (1 - 0) / \lambda\\
+   &= 1 / \lambda \approx 1.58
+\end{split}
 \]
 
 and in release phase when the starting value $s$ represents the current state, the target becomes
 
 \[
- t = s + (0 - s) / \lambda
-   = (1 - \lambda) s
+\begin{split}
+ t &= s + (0 - s) / \lambda\\
+   &= (1 - \lambda) s
+\end{split}
 \]
 
-Because the magnitudes of these coefficients will be over 1 and fixed-point calculation of the DSP deals with values between -1 and 1, we divide everything by 2 in the computation stage of the ADSR, and finally multiply by 2.
+Because the magnitudes of these coefficients will be over 1 and fixed-point calculation of the DSP deals with values between -1 and 1, and also the subtraction $1-(-1)$ does not fit between $[-1,1)$, we divide everything by 2 in the computation stage of the ADSR, and finally multiply by 2.
 
 
 \subsection{Modulation}
 
 In addition to the output ADSR, the instruments' oscillators and filters can be modulated with an ADSR, or an LFO. Because the instruments are implemented by hard-coding the signal handling in assembly, it's possible to multiply their outputs with a modulator or even change their state coefficients over time. As an example, we coded several instruments demonstrating this:
 
-- filter cutoff modified with an ADSR
-- filter cutoff modified with an LFO sinewave
-- pulse oscillator duty cycle modified with an ADSR.
+\begin{itemize}
+	\item filter cutoff modified with an ADSR
+	\item filter cutoff modified with an LFO sinewave
+	\item pulse oscillator duty cycle modified with an ADSR.
+\end{itemize}
 
 
 \subsection{Control interface}
@@ -222,28 +239,32 @@ The actual sound rendering code is in pure DSP assembly, but interfacing to the 
 
 The microcontroller code runs several RTEMS tasks:
 
-- panel interface handling
-- midi reading
-- DSP debugging reading
-- Sequencer tracking
+\begin{itemize}
+	\item panel interface handling
+	\item midi reading
+	\item DSP debugging reading
+	\item Sequencer tracking
+\end{itemize}
 
 
 \subsubsection{Panel interface}
 
 The user interface is as follows:
 
-- Shift key	Panic button: kill all notes and clear the sequencer memory. Kind of a soft reset.
-- Edit	Enable the sequencer recording and playback.
-- Part up	Currently edited midi channel up.
-- Part down	Currently edited midi channel down.
-- Group up	Channel mapping up.
-- Group down	Channel mapping down.
-- Page up	Currently edited pot up.
-- Page down	Currently edited pot down.
-- Param up	Pot tunable up.
-- Param down	Pot tunable down.
-- Value up	Unused.
-- Value down	Test note key.
+\begin{description}
+	\item[Shift key] Panic button: kill all notes and clear the sequencer memory. Kind of a soft reset.
+	\item[Edit] Enable the sequencer recording and playback.
+	\item[Part up] Currently edited midi channel up.
+	\item[Part down] Currently edited midi channel down.
+	\item[Group up] Channel mapping up.
+	\item[Group down] Channel mapping down.
+	\item[Page up] Currently edited pot up.
+	\item[Page down] Currently edited pot down.
+	\item[Param up] Pot tunable up.
+	\item[Param down] Pot tunable down.
+	\item[Value up] Unused.
+	\item[Value down] Test note key.
+\end{description}
 
 The midi channel and potentiometer mappings are somewhat clumsy to use. First the currently edited item is selected with the "part" or "page" keys for channels or pots, and then the selected value can be rotated with "group" or "part" keys, respectively. Only the eight first midi channels can be mapped to synth instruments, so try to configure your keypad to one of these. Our keypad always sent its midi events to midi channel 0.
 
