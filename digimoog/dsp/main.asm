@@ -51,12 +51,13 @@ DT	equ	1.0/RATE
 ; Depending on the actual oscillator and filter state sizes, this may be
 ; more than needed, but doesn't matter. NOTE: this must be increased
 ; if it's not enough for some oscillator+filter combination.
-ChannelCapacity  equ 63
+ChannelCapacity  equ 63 ; words per one channel
 OscStateCapacity equ 25 ; NOTE: just a constant sized block, hope that no one is bigger
-NumChannels      equ 10
+NumChannels      equ 10 ; maximum number of playable notes at a time
 
+; Channel structure variable indices
 ChDataIdx_Note          equ 0
-ChDataIdx_FiltStateAddr equ 1
+ChDataIdx_FiltStateAddr equ 1 ; pointer to beginning of the filter state, deprecated
 ChDataIdx_AdsrState     equ 2
 ChDataIdx_InstruPtr     equ (2+AdsrStateSize)
 ChDataIdx_InstruIdx     equ (2+AdsrStateSize+1)
@@ -65,6 +66,9 @@ ChDataIdx_OscState      equ (2+AdsrStateSize+3)
 
 ChDataIdx_FiltState     equ (ChDataIdx_OscState+OscStateCapacity)
 
+; Bit flags in the note number if the channel is in a special state
+; Note that these cripple the actual note value, but it's not used anymore
+; when the channel has been set to key off state
 ChNoteDeadBit           equ 23
 ChNoteKeyoffBit         equ 22
 
@@ -82,7 +86,7 @@ AccumBackupLfo ds 3
 	org	Y:$000000
 	include 'sin_table.asm' ; NOTE: this must be included here (well, it's not quite that strict - see sin_table.asm)
 
-MasterVolume:		
+MasterVolume:
 	ds	1		
 NoteThatWentDown: ; If a key just went down, this holds the note value. Otherwise, this has highest bit set.
 	ds	1
@@ -119,6 +123,8 @@ OutputHax
 
 	endif
 
+; Helper macro for moving registers to debug places
+; Only used in simulator
 	if simulator
 SimulatorMove macro Reg,YDst
 	move Reg,Y:(YDst)
@@ -131,6 +137,7 @@ SimulatorMove macro Reg,YDst
 PanicState:
 	ds 1
 
+	; must be here, goes to Y memory
 	include 'instruparams.asm'
 	include 'dpw_coefs.asm'
 	include 'saw_ticks.asm'
@@ -208,11 +215,12 @@ Start:
 	if simulator
 		move #>63,x0 ; 440 hz
 		move x0,Y:NoteThatWentDown
-		move #>$7fff05,x0
+		move #>$7fff05,x0 ; velocity (7fff00) and the instrument (5)
 		move x0,Y:InstrumentThatWentDown
 	endif
 
 MainLoop:
+	; timer handling for computing the cycle count
 	; reset the counter control reg first
 	move #>0,x0
 	move x0,X:TCSR0
@@ -263,6 +271,7 @@ MainLoop:
 		ChannelKillLoopEnd:
 	NoNoteWentUp:
 
+	; the mass-murderer panic key kills everything right now
 	brclr #0,Y:PanicState,PanicLoopEnd
 		move #>ChannelData,r1
 		do #NumChannels,PanicLoopEnd
@@ -270,8 +279,8 @@ MainLoop:
 			lua (r1+ChannelCapacity),r1
 	PanicLoopEnd:
 	bclr #0,Y:PanicState ; not needed anymore (don't bother checking if it was on, just clear)
-	; check if a key just went down
 
+	; check if a key just went down
 	brset #23,Y:NoteThatWentDown,NoNoteWentDown
 		move Y:NoteThatWentDown,n2
 		bset #23,Y:(NoteThatWentDown)
@@ -329,6 +338,7 @@ MainLoop:
 			move X:(r1+ChDataIdx_InstruPtr),r4
 
 			; save value of b so far
+			; both accumulators are used by the osc/filt/adsr functions
 			move b0,X:(AccumBackup)
 			move b1,X:(AccumBackup+1)
 			move b2,X:(AccumBackup+2)
@@ -363,7 +373,7 @@ MainLoop:
 			move X:(AccumBackup2+1),a1
 			move X:(AccumBackup2+2),a2
 
-			brclr #23,r3,_notkilled ; negative -> killed?
+			brclr #23,r3,_notkilled ; negative -> killed flag?
 		_killthischannel:
 			move #>0,r3
 			bset #ChNoteDeadBit,r2

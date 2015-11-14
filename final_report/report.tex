@@ -1,15 +1,25 @@
 % DO NOT CHANGE THESE!!!
 \documentclass[10pt,a4paper,oneside]{article}
 \usepackage{spankstyle}
-
+\usepackage{listings}
+\usepackage{courier}
 % Change these as they should be!
 \groupId{2}
 \students{Konsta Hölttä, 79149S}{Nuutti Hölttä, 217437}{}
 \topic{Virtual analog synthesis}
 \platform{Freescale/Chameleon}
 
-\newenvironment{V}{\begin{verbatim}}{\end{verbatim}}
-
+\lstset{basicstyle=\footnotesize\ttfamily,breaklines=true}
+\newcommand{\mycin}[1]{% new command for icluding piece of code from external files
+  \lstinputlisting[caption={\detokenize{#1}}]{#1}
+}
+\newcommand{\kuvaa}[4]{%
+	\begin{figure}[h]%
+		\centering \includegraphics[width=#1\textwidth]{#2}%
+		\caption{#3 \label{#4}}%
+	\end{figure}%
+}
+\newcommand{\kuva}[2]{\kuvaa{0.99}{#1}{#2}{fig:#1}}
 % DO NOT CHANGE THESE!!!
 \begin{document}
 \maketitle
@@ -17,41 +27,54 @@
 % Write your text here
 \section{Introduction}
 
-\cite{LaTeXhomepage}
+In this project, a subtractive sound synthesizer based on the analog devices from 70's and 80's \cite{nostalgiaa} was implemented on a Chameleon DSP hardware. Our synth works on instruments, that contain separate oscillators, filters, ADSRs and LFOs. Oscillators generate sound samples, which are manipulated by the filters, finally producing audible output. The oscillator and filter behaviour can be tuned with ADSRs or LFOs in realtime. The notes are read from a MIDI connection or a test button on the panel.
 
-Introduction - Short description of the project
-
-In this project, a subtractive sound synthesizer based on the analog devices from 70's and 80's was implemented on a Chameleon DSP hardware. Our synth works on instruments, that contain separate oscillators, filters, ADSRs and LFOs. Oscillators generate sound samples, which are manipulated by the filters, finally producing audible output. The oscillator and filter behaviour can be tuned with ADSRs or LFOs in realtime. The notes are read from a MIDI connection or a test button on the panel.
-
-The synth is written in a very modular way; new instruments are easily created. The system differs from analog synths mostly in the way that it is not monophonic, but instead we support instrument \emph channels that work like separate polyphonic instruments: when a new note is started, a new channel is reserved without killing the possibly playing old note on the same instrument. This mimics several identical analog instruments working in parallel. The notes end when their adsr finally releases, which usually happens after releasing the corresponding key on a keyboard.
+The synth is written in a very modular way; new instruments are easily created. The system differs from analog synths mostly in the way that it is not monophonic, but instead we support instrument \emph{channels} (``voices'' in some sources -- our terminology is not standard) that work like separate polyphonic instruments: when a new note is started, a new channel is reserved without killing the possibly playing old note on the same instrument. This mimics several identical analog instruments working in parallel. The notes end when their adsr finally releases, which usually happens after releasing the corresponding key on a keyboard.
 
 The panel interface is not very convenient. Sorry about that. For maximal user experience, using a MIDI keyboard is recommended.
 
 
 \section{Realization}
 
-Detailed description of all functional parts of the algorithm, divide according to the functional parts
-
-The program is divided into two high-level parts, the actual synth (written in DSP56k assembly) and a user interface with MIDI event and panel handling part (written in C). The synth runs on the DSP and the interface on the ColdFire.
+The program is divided into two high-level parts, the actual synth (written in DSP56k assembly) and a user interface with MIDI event and panel handling part (written in C). The synth runs on the DSP and the interface on the ColdFire. The structure follows largely the figures in our original plan.
 
 The sampling frequency is 48000 Hz.
+
+Much of the math is described in the article by Huovilainen and Välimäki \cite{algos}.
 
 \subsection{Synth}
 
 The synth code consists of oscillators and filters which are combined into instruments (with ADSR envelopes), and a main routine that evaluates the instruments and generates each sample.
 
-The DSP uses 24-bit fixed-point math, i.e. usual calculations happen with values between $[-1,1)$, with uniform spacing (in contrast to floating-point). If, for example, a value needs to be multiplied by a value bigger than 1, the multiplier must be scaled down, and the final result must then be e.g. bit-shifted by the scaling factor. The number 1 also cannot be represented exactly as-is; the largest 24-bit fixed point value is $1-2^{-23}$. The accumulator registers are 56-bit, though, so they can hold larger intermediate values. From here on in this raport, in the context of fixed-point numbers, 1.0 shall be understood as $1-2^{-23}$, which is the value that is the closest to 1.0 in 24-bit fixed point representation.
+The DSP uses 24-bit fixed-point math, i.e. usual calculations happen with values between $[-1,1)$, with uniform spacing (in contrast to floating-point). If, for example, a value needs to be multiplied by a value bigger than 1, the multiplier must be scaled down, and the final result must then be e.g. bit-shifted by the scaling factor. The number 1 also cannot be represented exactly as-is; the largest 24-bit fixed point value is $1-2^{-23}$. The accumulator registers are 56-bit, though, so they can hold larger intermediate values. From here on in this report, in the context of fixed-point numbers, 1.0 shall be understood as $1-2^{-23}$, which is the value that is the closest to 1.0 in 24-bit fixed point representation.
 
+A struct-like convention is employed in several places in the DSP code. For instance, a channel can be seen as a struct whose members are the currently playing note, the instrument type, the oscillator's state and so on. Each of these members is at a fixed offset with respect to the beginning of the memory block reserved for the channel, with these offsets simply defined with the equ assembler directive. So, in practice, a struct type definition simply consists of the struct's size (in words) and the offsets of its members (also in words, counted from the beginning of the struct), which are all assembly-time constants. In addition to channels, several other things are defined as structs, such as oscillator and filter states.
 
 \subsection{Main routine}
 
 The main routine is what puts everything in the DSP part together. When the user presses a key on the MIDI keyboard, an interrupt is sent by the ColdFire to the DSP. The interrupt places its data into specific memory slots which are then read in the main loop. Whenever the code in the main loop detects that a key just went down, it proceeds to allocate a new "channel" for this new note - channels are data structures containing information about currently active notes (such as note number and instrument type). There is a fixed maximum number of channels, and if they're all in use when a new key-down event arrives, the new key is simply ignored. Otherwise, the channel's contents are initialized to appropriate values.
 
-The output generation acts on a per-sample basis (in contrast to a block-based behavior). The samples are generated as follows. The main routine loops through the channels, and for each active channel, the corresponding instrument's oscillator and filter subroutines are called. The oscillator is evaluated first, and its output goes to the filter. The output of the filter is then modulated by an ADSR envelope. This is visualized in figure TODO.
+The output generation acts on a per-sample basis (in contrast to a block-based behavior). The samples are generated as follows. The main routine loops through the channels, and for each active channel, the corresponding instrument's oscillator and filter subroutines are called. The oscillator is evaluated first, and its output goes to the filter. The output of the filter is then modulated by an ADSR envelope. The structure of one channel is shown in figure \ref{fig:channel}.
+
+\kuva{channel}{A basic channel data flow}
 
 The results of each channel are summed together to form the final output. The output is sent to the DAC peripheral, which syncs the sample rate.
 
 When the user releases a key, an interrupt is sent in a manner similar to when a key went down. The main routine processes this event by finding the corresponding channel and marks it as released. The channel is not killed at this point; instead, the ADSR state is set to release. The channel is killed when the release stage ends, i.e. the ADSR value goes to zero.
+
+The channel numbers come from the coldfire code, and they are indices to the AllInstruments table. We implemented the following instruments:
+
+\begin{enumerate}
+	\item Bass: simple dpw saw, low-pass filtered,
+	\item BassSinLfo: same as previous, but a LFO sine wave controls the filter's cutoff,
+	\item BassAdsrLfo: same as previous, but instead of a sine wave, a separate ADSR controls the cutoff,
+	\item PulseBass: just a dpw pulse wave without a filter, and the pulse duty cycle is controlled by an ASDR
+	\item Noise: white noise, high-pass filtered, imitates a hi-hat drum
+	\item Bass4: like the first one, but with a 4-pole filter
+	\item Noise4: like the previous noise, but with a 4-pole filter
+\end{enumerate}
+
+See more about these in the assembly code.
 
 \subsection{Oscillators}
 
@@ -63,11 +86,11 @@ The sawtooth oscillator is basically just a counter that is incremented every ti
 
 \subsubsection{DPW sawtooth}
 
-Because of the aliased nature of the pure sawtooth it sounds rather unpleasant, and it must be corrected using the DPW (differentiated parabolic waveform) method [TODO:ref]. DPW sawtooth basically outputs the derivative of a squared sawtooth. A DPW sawtooth oscillator is thus based on a pure sawtooth, but its state contains also the previous squared value of the sawtooth signal. Its evaluation consists of taking the difference of the square of the current value of the pure sawtooth and the previous squared value, scaled by a factor that depends on the frequency of the oscillator [ref:kaavaTODO] [fig:TODO].
+Because of the aliased nature of the pure sawtooth it sounds rather unpleasant, and it must be corrected using the DPW (differentiated parabolic waveform) method \cite{algos}. DPW sawtooth basically outputs the derivative of a squared sawtooth. A DPW sawtooth oscillator is thus based on a pure sawtooth, but its state contains also the previous squared value of the sawtooth signal. Its evaluation consists of taking the difference of the square of the current value of the pure sawtooth and the previous squared value, scaled by a factor that depends on the frequency of the oscillator.
 
-\begin{verbatim}
+\[
   dpwSaw(n) = (saw(n)^2 - saw(n-1)^2) * c
-\end{verbatim}
+\]
 
 where
 
@@ -79,23 +102,23 @@ $f$ is the saw's frequency and $f_s$ is the sampling frequency. \verb|saw(n)| is
 
 \subsubsection{DPW pulse}
 
-Huovilainen presents the same problem as with sawtooths [TODO:ref], which is corrected here similarly. While a pure pulse wave is implementable as the difference of two phase-shifted pure sawtooths, a DPW pulse wave is similarly the difference of two DPW sawtooths. The amount of phase-shifting depends on the desired duty cycle of the pulse wave. The duty cycle can be modified on the fly, e.g. with a LFO.
+The same problem as with sawtooths is presented in \cite{algos}, which is corrected here similarly. While a pure pulse wave is implementable as the difference of two phase-shifted pure sawtooths, a DPW pulse wave is similarly the difference of two DPW sawtooths. The amount of phase-shifting depends on the desired duty cycle of the pulse wave. The duty cycle can be modified on the fly, e.g. with a LFO.
 
 \subsubsection{Noise}
 
-The noise oscillator is implemented with a simple white noise pseudo-random xorshift algorithm [TODO:ref (googlella xorshift rngs, se pdf siitä)]. Unlike the other oscillators, the output of the noise oscillator doesn't vary according to the note, since white noise contains all frequencies. Instead it is convenient to combine this oscillator with e.g. a high-pass filter.
+The noise oscillator is implemented with a simple white noise pseudo-random xorshift algorithm \cite{marsaglia2003xorshift}. Unlike the other oscillators, the output of the noise oscillator doesn't vary according to the note, since white noise contains all frequencies. Instead it is convenient to combine this oscillator with e.g. a high-pass filter.
 
 The xorshift algorithm corresponds to the following pseudo-code:
 
 \begin{verbatim}
-  v = previous output value (or seed)
-  v = v ^ (v<<8)
-  v = v ^ (v>>1)
-  v = v ^ (v<<11)
-  output = v
+  v := previous output value (or seed)
+  v := v ^ (v<<8)
+  v := v ^ (v>>1)
+  v := v ^ (v<<11)
+  output := v
 \end{verbatim}
 
-where v is a 24-bit temporary, and logical shifts are used. The shift amounts were computed rather brute-forcily using methods presented in [TODO: ref toho samaiseen xorshiftpapruun]. The period of the pseudo-random number sequence is $2^{24} - 1$.
+where v is a 24-bit temporary, and logical shifts are used. The shift amounts were computed rather brute-forcily using methods presented in \cite{marsaglia2003xorshift}. The period of the pseudo-random number sequence is $2^{24} - 1$.
 
 \subsubsection{Sine wave}
 
@@ -110,12 +133,12 @@ Similarly to oscillators, filters also have parameters and states. Filter evalua
 \subsubsection{Trivial lowpass}
 
 
-This filter is a one-pole lowpass whose state contains its last output and the smoothing factor. The implementation is rather straightforward (a simple RC filter, see [ref:1-2005-verkkoon], however one must pay attention to fixed-point issues and scale values appropriately.
+This filter is a one-pole lowpass whose state contains its last output and the smoothing factor. The implementation is rather straightforward (a simple RC filter, see \cite{nostalgiaa}), however one must pay attention to fixed-point issues and scale values appropriately.
 
 The output y changes according to the following pseudo-code (x is the input):
 
 \begin{verbatim}
-  y += (x-y) * g
+  y := y + (x-y) * g
 \end{verbatim}
 
 where
@@ -136,7 +159,7 @@ This is structured quite similarly to the lowpass, only the output calculation d
 The output y changes according to the following pseudo-code (x1 is the new input, x0 is the previous input):
 
 \begin{verbatim}
-  y = (y + x1 - x0) * g
+  y := (y + x1 - x0) * g
 \end{verbatim}
 
 where
@@ -153,16 +176,20 @@ $f_c$ is the cutoff frequency and $f_s$ is the sampling frequency.
 
 \subsubsection{Four-pole versions}
 
-Low- and high-pass filters are realized by implementing the digital moog filter as described in [välimhuov enkkupapru]. The feedback delay compensation is used, and the filter coefficients (such as the frequency) are compensated accordingly. Our implementation is missing the non-linearization effect, though. We implemented two filters, 4-pole lowpass and 4-pole highpass. The resonance is also there, but it seems a bit buggy. [kuva ja kuva]
+Low- and high-pass filters are realized by implementing the digital moog filter as described in \cite{algos}. The feedback delay compensation is used, and the filter coefficients (such as the frequency) are compensated accordingly. Our implementation is missing the non-linearization effect, though. We implemented two filters, 4-pole lowpass and 4-pole highpass. The resonance is also there, but it seems a bit buggy. It does not affect the signal as much as would be expected. See more about this in the source code.
 
+\kuva{compfilt.png}{A compensated LP filter (from \cite{algos})}
+\kuva{filt4p.png}{The 4-pole filter structure (from \cite{algos})}
 
 \subsection{ADSR envelope}
 
-The output volume of each channel is modulated with an attack-decay-sustain-release envelope generator. This makes the plain volume sound more instrument-like, when the volume jumps first up and then decays slowly to some level, imitating how real instruments are used. When a key is released, the volme decays slowly to zero. A normal ADSR is plotted in figure TODO. Our implementation consists of three separate stages: attack, decay, and release. Four parameters are used: time coefficients for attack, decay, and release, and a volume level for sustain. The envelope value changes exponentially in each stage towards a preset target value.
+The output volume of each channel is modulated with an attack-decay-sustain-release envelope generator. This makes the plain volume sound more instrument-like, when the volume jumps first up and then decays slowly to some level, imitating how real instruments are used. When a key is released, the volme decays slowly to zero. A normal ADSR is plotted in figure \ref{fig:adsr}. Our implementation consists of three separate stages: attack, decay, and release. Four parameters are used: time coefficients for attack, decay, and release, and a volume level for sustain. The envelope value changes exponentially in each stage towards a preset target value.
 
-Attack and release stages have their time constant target beyond the actual value, i.e. if they would run infinitely, the envelope value would overshoot; this is because an exponentially decaying function never actually reaches its target exactly. After the specified attack time, our envelope will reach 1; after the release time, it will go to zero. The decay phase goes (virtually) infinitely long towards the sustain level. Finite-precision calculation makes this stop at some time, but it's not noticeable by human ear.
+\kuva{adsr}{The adsr envelope output level, as a function of time}
 
-Table TODO. Filter parameters.
+Attack and release stages have their time constant target beyond the actual value, i.e. if they would run infinitely, the envelope value would overflow; this is because an exponentially decaying function never actually reaches its target exactly. After the specified attack time, our envelope will reach 1; after the release time, it will go to zero. The decay phase goes (virtually) infinitely long towards the sustain level. Finite-precision calculation makes this stop at some time, but it's not noticeable by human ear.
+
+Filter parameters are specified in the following table.
 
 \begin{tabular}{l l l}
 	name	&	Specified as&	Used and stored as\\
@@ -201,7 +228,7 @@ so that $\lambda$ of this new target is actually what we want (from zero to 1 in
 \end{split}
 \]
 
-In attack phase, this is (also visualized in figure TODO)
+In attack phase, this is
 
 \[
 \begin{split}
@@ -219,7 +246,7 @@ and in release phase when the starting value $s$ represents the current state, t
 \end{split}
 \]
 
-Because the magnitudes of these coefficients will be over 1 and fixed-point calculation of the DSP deals with values between -1 and 1, and also the subtraction $1-(-1)$ does not fit between $[-1,1)$, we divide everything by 2 in the computation stage of the ADSR, and finally multiply by 2.
+Because the magnitudes of these coefficients will be over 1 and fixed-point calculation of the DSP deals with values between -1 and 1, and also the subtraction $1-(-1)$ does not fit between $[-1,1)$, we divide everything by 2 in the computation stage of the ADSR, and finally multiply by 2 when the final value has been obtained.
 
 
 \subsection{Modulation}
@@ -266,11 +293,45 @@ The user interface is as follows:
 	\item[Value down] Test note key.
 \end{description}
 
-The midi channel and potentiometer mappings are somewhat clumsy to use. First the currently edited item is selected with the "part" or "page" keys for channels or pots, and then the selected value can be rotated with "group" or "part" keys, respectively. Only the eight first midi channels can be mapped to synth instruments, so try to configure your keypad to one of these. Our keypad always sent its midi events to midi channel 0.
+The potentiometer tunables are as follows:
+
+\begin{tabular}{l l}
+1&1st instru adsr A\\
+2&1st instru adsr D\\
+3&1st instru adsr R\\
+4&1st instru filt cutoff\\
+5&2nd instru filt base\\
+6&2nd instru filt sine freq\\
+7&3rd instru filt adsr A\\
+8&3rd instru filt adsr D\\
+9&3rd instru filt adsr R\\
+a&4th instru dutycycle base\\
+b&4th instru dutycycle amplitude\\
+c&5th instru filt cutoff\\
+d&6th instru filt cutoff\\
+e&6th instru filt resonance\\
+f&7th instru filt cutoff
+\end{tabular}
+
+Not much thought is given to these. For example, the units are not scaled very consistently, but they just are tuned so that everything sounds good enough.
+
+The original code had a buggy sine amplitude tunable at \#6. It is replaced with the sine frequency in the final code that also was in the demo.
+
+The midi channel and potentiometer mappings are somewhat clumsy to use. First the currently edited item is selected with the "part" or "page" keys for channels or pots, and then the selected value can be rotated with "group" or "param" keys, respectively. Only the eight first midi channels can be mapped to synth instruments, so try to configure your midi keypad to one of these. Our keypad always sent its midi events to midi channel 0.
 
 The value down key acts as one midi key at midi channel 0. The encoder turns the test note's note number up and down. There is no safety restrictions on changing the value beyond the [0,127] range.
 
 The volume potentiometer works as expected.
+
+The panel LCD display looks like this:
+
+\begin{verbatim}
+TxAaBbCc 01234567
+NNNNNNNN QWERTYUI
+\end{verbatim}
+
+where a, b, and c represent the first, second and third pot tunable mapping, respectively; N's mean the debugging value from the DSP (the runtime of a single sample, in cycles); QWERTYUI means the numbers for instruments for midi channels that are above on the first row, e.g. Q is the synth instrument for midi channel 0. The currently selected channel and tunable are blinking.
+
 
 \subsubsection{Midi code}
 
@@ -287,17 +348,42 @@ The sequencer, when turned on, loops an array of fixed size 16, and sends all re
 
 \section{Self-assessment}
 
-Notes on the realization and division of the assignment workload between group members
+Since there were only two of us working on this assignment, the amount of work per group member was somewhat higher, which was to be expected. The initial channel management and sample generation structure along with some simple oscillators and filters, as well as the initial rudimentary panel interface and later also a simple MIDI handling (in the C code), were written by Nuutti. At this time Konsta was not available for coding. Later, Konsta improved these, and lately wrote better implementations of the more mathematical DSP stuff (oscillators, filters, ADSRs etc.). Nuutti wrote the sine LFO and the noise oscillator. Much of the C code and all the multipole filters were kind of hacked together during the last evenings by Konsta, and are not guaranteed to be bug-free. We feel that the workload was divided pretty fairly, while Konsta did a bit more work because he had more time and experience.
 
 
 \section{Conclusions}
 
-Concluding remarks on the special assignment in whole
+We are quite happy with how the synth turned out; we feel it became more or less what we initially planned. In retrospect, it would have likely been better to take a block-based approach instead of the current per-sample generation. This would have allowed us to better take advantage of the DSP architecture. Of course, that would have meant a short delay between a key-press and the produced sound, but with a block size of e.g. a few dozens of samples, the delay would have been unnoticeable. We noticed that the MonoSynth example code that came with the Chameleon SDK used a block-based approach.
 
+As it stands now with our synth, depending on the instrument, playing about five or so notes at the same time can cause the workload to be too heavy, effectively resulting in half-speed output that sounds lower than normal. This mostly happens with complex instruments.
+
+In the end, we didn't feel that the DSP's assembly was all that different from that of traditional processors. The main differences, namely, the separate X and Y memory spaces and the MAC instruction, could have put to better use had we taken the block-based approach.
 
 \section{Appendices}
 
-The code well commented
+Program code. Better readable in the accompanying files.
+
+\mycin{code/main.c}
+\mycin{code/seq.c}
+\mycin{code/seq.h}
+\mycin{code/main.asm}
+\mycin{code/oscinc.asm}
+\mycin{code/filtinc.asm}
+\mycin{code/multipoleinc.asm}
+\mycin{code/adsrinc.asm}
+\mycin{code/sininc.asm}
+\mycin{code/sin_table.asm}
+\mycin{code/instruparams.asm}
+\mycin{code/dpw_coefs.asm}
+\mycin{code/saw_ticks.asm}
+\mycin{code/instrucode.asm}
+\mycin{code/adsr.asm}
+\mycin{code/osc.asm}
+\mycin{code/filt.asm}
+\mycin{code/multipole.asm}
+\mycin{code/sin.asm}
+\mycin{code/isr.asm}
+
 
 \bibliographystyle{unsrt}
 \bibliography{report}

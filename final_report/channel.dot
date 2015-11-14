@@ -1,0 +1,11 @@
+digraph Orthogonal {
+	graph [ splines=ortho , nodesep=0.8 ,rankdir=LR]
+	node [ shape=box]
+
+
+	x -> plus1
+	plus1 -> mul
+	mul -> plus2
+	plus2 -> {y, old}
+	old -> {plus2, plus1}
+}

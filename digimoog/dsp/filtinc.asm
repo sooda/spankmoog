@@ -1,3 +1,5 @@
+; trivial lowpass and highpass structures
+
 FiltTrivLpK	equ	(DT*2*PI) ; just a shorthand constant
 
 ; magic coefficient to multiply with
@@ -8,7 +10,7 @@ FiltTrivialLpParams	macro	fc
 ; the coefficient for a frequency, and a derivarive of the magic coef function
 ; at the same point - multiplied by the lfo amplitude.
 
-; the second derivative is really small, let's not bother ; using 2nd order
+; the second derivative is really small, let's not bother using 2nd order
 ; taylor (yet)
 FiltTrivialLpParamsLfo	macro	fc,lfo
 	dc	((FiltTrivLpK*fc)/(FiltTrivLpK*fc+1))

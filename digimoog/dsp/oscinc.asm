@@ -1,11 +1,12 @@
 ; oscillator struct defs
 
+; Saw oscillator contains the increment value (tick) and previous output value
 SawOscIdx_Tick	equ	0
 SawOscIdx_Val	equ	1
 SawOscSize	equ	2
 
 DpwOscIdx_Saw	equ	0
-DpwOscIdx_Val	equ	SawOscSize
+DpwOscIdx_Val	equ	SawOscSize ; previous saw^2
 DpwOscIdx_Coef	equ	SawOscSize+1
 DpwOscSize	equ	SawOscSize+2
 ; size: 2+2=4

@@ -1,6 +1,12 @@
+; These functions mostly set up the parameters for their internal oscillators or filters,
+; should be pretty straightforward
+; Sometimes an instrument contains a lot of state and the initial state
+; pointer (r4) from the main routine won't be enough to index everything
+; Calling convention in instruparams.asm
+
 BassInit:
 	lua (r1+ChDataIdx_FiltState),r0
-	lua (r4+InstruBassIdx_Lp),r5
+	lua (r4+InstruBassIdx_Lp),r5 ; r5 specified in FiltTrivialLpInit; same pattern repeats in this file
 	bsr FiltTrivialLpInit
 
 	lua (r1+ChDataIdx_OscState),r0
@@ -92,7 +98,7 @@ DoLfoLp macro
 	endm
 
 BassSinLfoFilt:
-	; use the sin as an LFO:
+	; use the sine as an LFO:
 	lua (r0+BassLfoStateIdx_Lfo),r2
 	bsr LFOSinEval
 	DoLfoLp

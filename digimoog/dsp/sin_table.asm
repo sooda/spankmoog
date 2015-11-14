@@ -1,4 +1,4 @@
-; NOTE: the sin table must be located in Y memory, and its start address must
+; NOTE: the sine table must be located in Y memory, and its start address must
 ; be a multiple of 2**k, k is an integer such that 2**k >= SinTableSize.
 ; For example, this is trivially satisfied by placing the table to start at Y:0.
 

@@ -1,3 +1,7 @@
+; Multipole filter structures
+; Not much thought given to these
+; everything is pretty much the same as in the
+; computer music journal paper referenced in the report
 Filt4PartStateIdx_x0	equ 0
 Filt4PartStateIdx_y0	equ 1
 Filt4PartStateSize	equ 2
@@ -35,6 +39,7 @@ Filt4LP4Coefs macro
 	endm
 
 ; NOTE: these do not sum to 1!
+; must be scaled back where used
 Filt4HP4Coefs macro
 	dc  1/8.0
 	dc -4/8.0

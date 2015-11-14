@@ -1,3 +1,8 @@
+; Here be dragons!
+; Not fully tested, especially the resonance doesn't seem to work,
+; because it affects only very little to the sound. No time to fix.
+; See the referenced paper for mathematical details.
+
 ; workspace: X:(r0), params Y:(r5)
 Filt4Init:
 	move #>0,x0

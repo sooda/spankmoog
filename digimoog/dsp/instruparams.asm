@@ -4,9 +4,10 @@
 
 ; would be easy and handy to rely on that init routines are not needed and the
 ; states would just get zeroed when initializing, but oscillators still need at
-; least some period magic number - init function for instruments.
+; least some period magic number - thus, init function for instruments.
 ; calling convention docs in main.asm so far
 
+; these are used for each instrument always
 InstruParamIdx_InitFunc	equ	0
 InstruParamIdx_OscFunc	equ	1
 InstruParamIdx_FiltFunc	equ	2
@@ -16,6 +17,10 @@ InstruParamIdx_End	equ	3+AdsrStateSize
 
 InstruBassIdx_Lp	equ	InstruParamIdx_End
 
+; pretty stupid to call almost every instrument a bass, but whatever
+; this is also quite copy-pasta
+
+; a simple lp-filtered dpw saw
 Instrument_Bass:
 	dc BassInit-ChAlloc_InitInstruState
 	dc OscDpwsawEval-ChEval_OscEvalBranch
@@ -23,10 +28,12 @@ Instrument_Bass:
 	if !simulator
 tune1	AdsrParamBlock 0.1,0.1,0.5,0.1
 	else
-tune1	AdsrParamBlock 0.005,0.005,0.5,0.005
+tune1	AdsrParamBlock 0.005,0.005,0.5,0.005 ; faster to debug with smaller values
 	endif
 tune2	FiltTrivialLpParams 5000
 
+
+; dpw saw, filter cutoff tuned by a sine lfo
 Instrument_BassSinLfo:
 	dc BassSinLfoInit-ChAlloc_InitInstruState
 	dc OscDpwsawEval-ChEval_OscEvalBranch
@@ -39,6 +46,7 @@ Instrument_BassSinLfo:
 tune3	FiltTrivialLpParamsLfo 1200,1000
 tune31	dc 0.1
 
+; as above but sine replaced with an adsr
 Instrument_BassAdsrLfo:
 	dc BassAdsrLfoInit-ChAlloc_InitInstruState
 	dc OscDpwsawEval-ChEval_OscEvalBranch
@@ -51,6 +59,7 @@ tune4	AdsrParamBlock 0.001,0.2,0.0,1.0
 
 InstruBassAdsrIdx_FiltAdsr	equ	InstruParamIdx_End+FiltTrivialLpParamsLfoSize
 
+; pulse wave, no filters, duty cycle adsr'd
 Instrument_PulseBass:
 	dc PulseBassInit-ChAlloc_InitInstruState
 	dc PulseBassOsc-ChEval_OscEvalBranch
@@ -72,6 +81,7 @@ InstruPulseBassIdx_DutyAmpl	equ	InstruParamIdx_End+AdsrParamsSize+1
 
 InstruNoiseIdx_Hp	equ	InstruParamIdx_End
 
+; hp-filtered noise, like a hihat drum
 Instrument_Noise:
 	dc NoiseInstInit-ChAlloc_InitInstruState
 	dc NoiseEval-ChEval_OscEvalBranch
@@ -83,6 +93,7 @@ Instrument_Noise:
 	endif
 tune6	FiltTrivialHpParams 5000
 
+; 4-pole version of the first instrument
 Instrument_Bass4:
 	dc Bass4Init-ChAlloc_InitInstruState
 	dc OscDpwsawEval-ChEval_OscEvalBranch
@@ -95,6 +106,7 @@ Instrument_Bass4:
 filt4p	Filt4LP4Coefs
 tune7	Filt4CoefResComp 500.0*2*PI/RATE,0.5,0.5
 
+; 4-pole version of the hihat
 Instrument_Noise4:
 	dc Noise4Init-ChAlloc_InitInstruState
 	dc NoiseEval-ChEval_OscEvalBranch
@@ -107,6 +119,7 @@ Instrument_Noise4:
 	Filt4HP4Coefs
 tune8	Filt4CoefResComp 5000.0*2*PI/RATE,0,0
 
+; pointer lookup table for indexing the instrument structures
 AllInstruments:
 	dc Instrument_Bass
 	dc Instrument_BassSinLfo
@@ -117,7 +130,7 @@ AllInstruments:
 	dc Instrument_Noise4
 
 ; addresses of tunable parameters
-; these shall come with an accompanying manual with number mappings
+; these shall come with an accompanying manual with number mappings (see pdf)
 InstruTunables:
 	dc tune1	; 0: 1st instru adsr A
 	dc tune1+1	; 1: 1st instru adsr D

@@ -61,7 +61,7 @@ FiltTrivialHpInit:
 ; work regs: a, b, x0, x1
 
 ; y1 = g * (y0 + x1 - x0)
-;    = g * y0 + a * (x1 - x0)
+;    = g * y0 + g * (x1 - x0)
 ;    = g * (x1 + (y0 - x0))
 ;    = 2 * g * (x1/2 + (y0 - x0) / 2)
 ; store: (y0-x0)/2

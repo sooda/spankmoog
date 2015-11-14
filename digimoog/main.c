@@ -7,18 +7,11 @@
  * Project work template for sample-based audio input and output      *
  * Based on the example dspthru by Soundart                           *
  * Hannu Pulakka, March 2006, February 2007                           *
- * Modified by Antti Pakarinen, February, 2012		 	      * 	
+ * Modified by Antti Pakarinen, February, 2012		 	      *
  *	(Panel input and communication routines) 		      *
  **********************************************************************/
 
-/* Usage:
- *
- * Edit key: sequencer event saving on/off
- * Shift key: clear the sequencer and kill all notes immediately
- * Part up/down: select midi channel to edit
- * Group up/down: map selected midi channel to a synth channel
- *
- */
+/* Usage: see the report pdf */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -71,8 +64,9 @@ static int panel, dsp;
 static volatile int seqtick, seqevs, seqenabled;
 static rtems_unsigned32 encoval;
 
-// midi channel to synth instrument mapping
+// midi channel (0..7) to synth instrument (1..7) mapping
 // if the value is 0, all events to this channel are ignored
+// several midi channels can be assigned to the same instrument
 // otherwise, synth_idx = midichan_to_synth[midichan] - 1
 // note that the program change events are not used for anything
 // the keypad buttons work at channel 0
@@ -81,7 +75,8 @@ static rtems_unsigned32 encoval;
 static int midichan_to_synth[MIDI_CHAN_MAP_SIZE];
 static int midichanedit;
 
-// pot to tunable mapping
+// pot to tunable mapping in the same way as midi channels
+// three pots, TUNABLES_SIZE parameters
 // these in InstruTunables array in instruparams.asm
 #define TUNABLES_SIZE (0xe + 1)
 static int pot_to_tunable[3];
@@ -126,6 +121,8 @@ static void DSP_write_cmd_data2(rtems_unsigned32 vecnum, rtems_unsigned32 data1,
 // FIXME: cannot send three words, would get stuck (?!)
 // hangs all threads, even the blinking led stops, wtf
 static void DSP_write_cmd_data3(rtems_unsigned32 vecnum, rtems_unsigned32 data1, rtems_unsigned32 data2, rtems_unsigned32 data3) {
+	// HACK used only in sending the note on events
+	// note number fits well in the lower 8 bits
 	rtems_unsigned32 juttu;
 	sprintf(dbgbuf, "DSP_write_cmd_data3 %d %d %d\n", vecnum, data1, data2); TRACE(dbgbuf);
 	juttu = float_to_fix_round(data3 / 127.0);
@@ -147,6 +144,9 @@ void initialize()
 
     panel_out_lcd_print(panel, 0, 0, "digimoog");
 }
+
+// Functions for transforming potentiometer values to
+// parameter-specific ranges
 static rtems_unsigned32 lowpass_pot(rtems_unsigned32 pot) {
 	float freq = (float)pot / 0xffffff * 16000.0;
 	float c = (FILT_K * freq) / (FILT_K * freq + 1);
@@ -154,6 +154,10 @@ static rtems_unsigned32 lowpass_pot(rtems_unsigned32 pot) {
 }
 
 static rtems_unsigned32 lowpass_dif(rtems_unsigned32 pot) {
+	// NOTE: THIS IS BROKEN!
+	// This would need the frequency also, of course
+	// potentiometer value should set the deviation amplitude
+	// the coefficient for that is a slope value computed from the frequency
 	float freq = (float)pot / 0xffffff * 16000.0;
 	float c = FILT_K / ((FILT_K * freq + 1) * (FILT_K * freq + 1));
 	c *= 1000; // max amplitude
@@ -178,6 +182,7 @@ static rtems_unsigned32 adsr_time(rtems_unsigned32 pot) {
 	return c * 0x7fffff;
 }
 
+// MIDI input event handler, also save to the sequencer
 static void synth_note_off(int notenum, int midichan) {
 	if (midichan >= 0 && midichan < MIDI_CHAN_MAP_SIZE) {
 		int synthinstru = midichan_to_synth[midichan] - 1;
@@ -188,6 +193,8 @@ static void synth_note_off(int notenum, int midichan) {
 		}
 	}
 }
+
+// MIDI input event handler, also save to the sequencer
 static void synth_note_on(int notenum, int midichan, int velocity) {
 	if (midichan >= 0 && midichan < MIDI_CHAN_MAP_SIZE) {
 		int synthinstru = midichan_to_synth[midichan] - 1;
@@ -199,6 +206,7 @@ static void synth_note_on(int notenum, int midichan, int velocity) {
 	}
 }
 
+// Handle the physical keypads on the chameleon panel
 static void keydown(enum Key key) {
 	switch (key) {
 	case KEY_SHIFT:
@@ -254,6 +262,8 @@ static void keyup(enum Key key) {
 static rtems_signed32	volume_table[128];
 static rtems_signed32	linear_table[128];
 
+// Manually hard-coded by the tunable array in the assembly code
+// See the pointers in the corresponding assembly array for details
 void update_tunable(int i, int potvalue) {
 	int tunable;
 	rtems_unsigned32 sendval;
@@ -457,6 +467,8 @@ static rtems_task read_task(rtems_task_argument ignored)
   rtems_task_delete(RTEMS_SELF);
 }
 
+// Sequencer handling: read the recorded notes and play them to the synth
+// Also display some useful information on the panel
 static rtems_task seq_task(rtems_task_argument ignored) {
 	int bpm = 4;
 	rtems_interval secticks, period;
